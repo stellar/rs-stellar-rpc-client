@@ -1,2 +1,0 @@
-Cargo.lock text -merge eol=lf
-cmd/crates/soroban-spec-typescript/fixtures/**/* linguist-generated=true -diff
