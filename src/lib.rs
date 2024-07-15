@@ -237,7 +237,11 @@ impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
 
     fn try_into(self) -> Result<GetTransactionsResponse, Self::Error> {
         Ok(GetTransactionsResponse {
-            transactions: self.transactions.into_iter().map(TryInto::try_into).collect::<Result<Vec<_>,xdr::Error>>()?,
+            transactions: self
+                .transactions
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, xdr::Error>>()?,
             latest_ledger: self.latest_ledger,
             latest_ledger_close_time: self.latest_ledger_close_time,
             oldest_ledger: self.oldest_ledger,
