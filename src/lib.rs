@@ -236,15 +236,8 @@ impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
     type Error = xdr::Error; // assuming xdr::Error or any other error type that you use
 
     fn try_into(self) -> Result<GetTransactionsResponse, Self::Error> {
-        let mut transactions = Vec::new();
-
-        for tx_raw in self.transactions {
-            let tx: GetTransactionResponse = tx_raw.try_into()?;
-            transactions.push(tx);
-        }
-
         Ok(GetTransactionsResponse {
-            transactions,
+            transactions: self.transactions.into_iter().map(TryInto::try_into).collect::<Result<Vec<_>,xdr::Error>>()?,
             latest_ledger: self.latest_ledger,
             latest_ledger_close_time: self.latest_ledger_close_time,
             oldest_ledger: self.oldest_ledger,
