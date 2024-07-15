@@ -1233,7 +1233,7 @@ mod tests {
 
         // Assertions
         assert_eq!(response.transactions.len(), 5);
-        assert_eq!(response.latest_ledger, 556962);
+        assert_eq!(response.latest_ledger, 556_962);
         assert_eq!(response.cursor, "2379420471922689");
 
         // Additional assertions for specific transaction attributes
