@@ -867,7 +867,10 @@ impl Client {
 
     ///
     /// # Errors
-    pub async fn get_transactions(&self, request: GetTransactionsRequest) -> Result<GetTransactionsResponse, Error> {
+    pub async fn get_transactions(
+        &self,
+        request: GetTransactionsRequest,
+    ) -> Result<GetTransactionsResponse, Error> {
         let mut oparams = ObjectParams::new();
 
         if let Some(start_ledger) = request.start_ledger {
@@ -880,14 +883,15 @@ impl Client {
                 pagination.insert("cursor".to_string(), serde_json::json!(cursor));
             }
             if let Some(limit) = pagination_params.limit {
-                pagination.insert("limit".to_string(),serde_json::json!(limit));
+                pagination.insert("limit".to_string(), serde_json::json!(limit));
             }
         }
 
         if !pagination.is_empty() {
             oparams.insert("pagination", pagination)?;
         }
-        let resp: GetTransactionsResponseRaw = self.client().request("getTransactions", oparams).await?;
+        let resp: GetTransactionsResponseRaw =
+            self.client().request("getTransactions", oparams).await?;
         Ok(resp.try_into()?)
     }
 
@@ -1154,8 +1158,8 @@ pub(crate) fn parse_cursor(c: &str) -> Result<(u64, i32), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use std::env;
+    use std::fs;
     use std::path::PathBuf;
 
     #[test]
@@ -1205,34 +1209,37 @@ mod tests {
     #[test]
     fn test_parse_get_transactions_response() {
         let repo_root = get_repo_root();
-        let fixture_path = repo_root.join("src").join("fixtures").join("transactions_response.json");
-        let response_content = fs::read_to_string(fixture_path)
-            .expect("Failed to read transactions_response.json");
-    
+        let fixture_path = repo_root
+            .join("src")
+            .join("fixtures")
+            .join("transactions_response.json");
+        let response_content =
+            fs::read_to_string(fixture_path).expect("Failed to read transactions_response.json");
+
         // Parse the entire response
         let full_response: serde_json::Value = serde_json::from_str(&response_content)
             .expect("Failed to parse JSON from transactions_response.json");
-    
+
         // Extract the "result" field
         let result = full_response["result"].clone();
         // Parse the "result" content as GetTransactionsResponseRaw
         let raw_response: GetTransactionsResponseRaw = serde_json::from_value(result)
             .expect("Failed to parse 'result' into GetTransactionsResponseRaw");
-    
+
         // Convert GetTransactionsResponseRaw to GetTransactionsResponse
-        let response: GetTransactionsResponse = raw_response.try_into()
+        let response: GetTransactionsResponse = raw_response
+            .try_into()
             .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
-    
+
         // Assertions
         assert_eq!(response.transactions.len(), 5);
         assert_eq!(response.latest_ledger, 556962);
         assert_eq!(response.cursor, "2379420471922689");
-    
+
         // Additional assertions for specific transaction attributes
         assert_eq!(response.transactions[0].status, "SUCCESS");
         //assert_eq!(response.transactions[0].application_order, 1);
         //assert_eq!(response.transactions[0].ledger, 554000);
-
     }
 
     #[test]
