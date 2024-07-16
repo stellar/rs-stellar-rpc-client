@@ -211,6 +211,7 @@ impl GetTransactionResponse {
     }
 }
 
+#[serde_as]
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionsResponseRaw {
     pub transactions: Vec<GetTransactionResponseRaw>,
@@ -222,7 +223,8 @@ pub struct GetTransactionsResponseRaw {
     pub oldest_ledger: u32,
     #[serde(rename = "oldestLedgerCloseTimestamp")]
     pub oldest_ledger_close_time: i64,
-    pub cursor: String,
+    #[serde_as(as = "DisplayFromStr")]
+    pub cursor: u64,
 }
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionsResponse {
@@ -231,7 +233,7 @@ pub struct GetTransactionsResponse {
     pub latest_ledger_close_time: i64,
     pub oldest_ledger: u32,
     pub oldest_ledger_close_time: i64,
-    pub cursor: String,
+    pub cursor: u64,
 }
 impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
     type Error = xdr::Error; // assuming xdr::Error or any other error type that you use
@@ -257,12 +259,14 @@ impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
 pub struct TransactionsPaginationOptions {
     #[serde_as(as = "Option<DisplayFromStr>")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cursor: Option<String>,
+    pub cursor: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
 }
 
 #[derive(serde::Serialize, Debug, Clone)]
 pub struct GetTransactionsRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_ledger: Option<u32>,
     pub pagination: Option<TransactionsPaginationOptions>,
 }
@@ -873,22 +877,11 @@ impl Client {
         request: GetTransactionsRequest,
     ) -> Result<GetTransactionsResponse, Error> {
         let mut oparams = ObjectParams::new();
-
         if let Some(start_ledger) = request.start_ledger {
             oparams.insert("startLedger", start_ledger)?;
         }
-
-        let mut pagination = serde_json::Map::new();
         if let Some(pagination_params) = request.pagination {
-            if let Some(cursor) = pagination_params.cursor {
-                pagination.insert("cursor".to_string(), serde_json::json!(cursor));
-            }
-            if let Some(limit) = pagination_params.limit {
-                pagination.insert("limit".to_string(), serde_json::json!(limit));
-            }
-        }
-
-        if !pagination.is_empty() {
+            let pagination = serde_json::json!(pagination_params);
             oparams.insert("pagination", pagination)?;
         }
         let resp: GetTransactionsResponseRaw =
@@ -1235,7 +1228,7 @@ mod tests {
         // Assertions
         assert_eq!(response.transactions.len(), 5);
         assert_eq!(response.latest_ledger, 556_962);
-        assert_eq!(response.cursor, "2379420471922689");
+        assert_eq!(response.cursor, 2_379_420_471_922_689);
 
         // Additional assertions for specific transaction attributes
         assert_eq!(response.transactions[0].status, "SUCCESS");
