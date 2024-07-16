@@ -1073,7 +1073,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
 name = "stellar-rpc-client"
-version = "21.3.1"
+version = "21.4.0"
 dependencies = [
  "clap",
  "hex",
