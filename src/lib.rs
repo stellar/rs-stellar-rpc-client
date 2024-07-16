@@ -7,6 +7,7 @@ use serde_aux::prelude::{
     deserialize_default_from_null, deserialize_number_from_string,
     deserialize_option_number_from_string,
 };
+use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
     Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
@@ -251,8 +252,11 @@ impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
     }
 }
 
+#[serde_as]
 #[derive(serde::Serialize, Debug, Clone)]
 pub struct TransactionsPaginationOptions {
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
     pub limit: Option<u32>,
 }
