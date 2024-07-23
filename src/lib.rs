@@ -100,7 +100,6 @@ pub enum Error {
     LargeFee(u64),
     #[error("Cannot authorize raw transactions")]
     CannotAuthorizeRawTransaction,
-
     #[error("Missing result for tnx")]
     MissingOp,
 }
