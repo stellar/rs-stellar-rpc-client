@@ -7,6 +7,7 @@ use serde_aux::prelude::{
     deserialize_default_from_null, deserialize_number_from_string,
     deserialize_option_number_from_string,
 };
+use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
     Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
@@ -99,7 +100,6 @@ pub enum Error {
     LargeFee(u64),
     #[error("Cannot authorize raw transactions")]
     CannotAuthorizeRawTransaction,
-
     #[error("Missing result for tnx")]
     MissingOp,
 }
@@ -206,6 +206,66 @@ impl GetTransactionResponse {
             .filter(|e| matches!(e.event.type_, ContractEventType::Contract))
             .collect::<Vec<_>>())
     }
+}
+
+#[serde_as]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetTransactionsResponseRaw {
+    pub transactions: Vec<GetTransactionResponseRaw>,
+    #[serde(rename = "latestLedger")]
+    pub latest_ledger: u32,
+    #[serde(rename = "latestLedgerCloseTimestamp")]
+    pub latest_ledger_close_time: i64,
+    #[serde(rename = "oldestLedger")]
+    pub oldest_ledger: u32,
+    #[serde(rename = "oldestLedgerCloseTimestamp")]
+    pub oldest_ledger_close_time: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub cursor: u64,
+}
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetTransactionsResponse {
+    pub transactions: Vec<GetTransactionResponse>,
+    pub latest_ledger: u32,
+    pub latest_ledger_close_time: i64,
+    pub oldest_ledger: u32,
+    pub oldest_ledger_close_time: i64,
+    pub cursor: u64,
+}
+impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
+    type Error = xdr::Error; // assuming xdr::Error or any other error type that you use
+
+    fn try_into(self) -> Result<GetTransactionsResponse, Self::Error> {
+        Ok(GetTransactionsResponse {
+            transactions: self
+                .transactions
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, xdr::Error>>()?,
+            latest_ledger: self.latest_ledger,
+            latest_ledger_close_time: self.latest_ledger_close_time,
+            oldest_ledger: self.oldest_ledger,
+            oldest_ledger_close_time: self.oldest_ledger_close_time,
+            cursor: self.cursor,
+        })
+    }
+}
+
+#[serde_as]
+#[derive(serde::Serialize, Debug, Clone)]
+pub struct TransactionsPaginationOptions {
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+#[derive(serde::Serialize, Debug, Clone)]
+pub struct GetTransactionsRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_ledger: Option<u32>,
+    pub pagination: Option<TransactionsPaginationOptions>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -807,6 +867,25 @@ impl Client {
         Ok(resp.try_into()?)
     }
 
+    ///
+    /// # Errors
+    pub async fn get_transactions(
+        &self,
+        request: GetTransactionsRequest,
+    ) -> Result<GetTransactionsResponse, Error> {
+        let mut oparams = ObjectParams::new();
+        if let Some(start_ledger) = request.start_ledger {
+            oparams.insert("startLedger", start_ledger)?;
+        }
+        if let Some(pagination_params) = request.pagination {
+            let pagination = serde_json::json!(pagination_params);
+            oparams.insert("pagination", pagination)?;
+        }
+        let resp: GetTransactionsResponseRaw =
+            self.client().request("getTransactions", oparams).await?;
+        Ok(resp.try_into()?)
+    }
+
     /// Poll the transaction status. Can provide a timeout in seconds, otherwise uses the default timeout.
     ///
     /// It uses exponential backoff with a base of 1 second and a maximum of 30 seconds.
@@ -1070,6 +1149,9 @@ pub(crate) fn parse_cursor(c: &str) -> Result<(u64, i32), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::fs;
+    use std::path::PathBuf;
 
     #[test]
     fn simulation_transaction_response_parsing() {
@@ -1102,6 +1184,53 @@ mod tests {
 
         let resp: SimulateTransactionResponse = serde_json::from_str(s).unwrap();
         assert_eq!(resp.latest_ledger, 1_234);
+    }
+
+    fn get_repo_root() -> PathBuf {
+        let mut path = env::current_exe().expect("Failed to get current executable path");
+        // Navigate up the directory tree until we find the repository root
+        while path.pop() {
+            if path.join("Cargo.toml").exists() {
+                return path;
+            }
+        }
+        panic!("Could not find repository root");
+    }
+
+    #[test]
+    fn test_parse_get_transactions_response() {
+        let repo_root = get_repo_root();
+        let fixture_path = repo_root
+            .join("src")
+            .join("fixtures")
+            .join("transactions_response.json");
+        let response_content =
+            fs::read_to_string(fixture_path).expect("Failed to read transactions_response.json");
+
+        // Parse the entire response
+        let full_response: serde_json::Value = serde_json::from_str(&response_content)
+            .expect("Failed to parse JSON from transactions_response.json");
+
+        // Extract the "result" field
+        let result = full_response["result"].clone();
+        // Parse the "result" content as GetTransactionsResponseRaw
+        let raw_response: GetTransactionsResponseRaw = serde_json::from_value(result)
+            .expect("Failed to parse 'result' into GetTransactionsResponseRaw");
+
+        // Convert GetTransactionsResponseRaw to GetTransactionsResponse
+        let response: GetTransactionsResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
+
+        // Assertions
+        assert_eq!(response.transactions.len(), 5);
+        assert_eq!(response.latest_ledger, 556_962);
+        assert_eq!(response.cursor, 2_379_420_471_922_689);
+
+        // Additional assertions for specific transaction attributes
+        assert_eq!(response.transactions[0].status, "SUCCESS");
+        //assert_eq!(response.transactions[0].application_order, 1);
+        //assert_eq!(response.transactions[0].ledger, 554000);
     }
 
     #[test]
