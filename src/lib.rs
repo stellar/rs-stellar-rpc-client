@@ -96,8 +96,6 @@ pub enum Error {
     UnexpectedContractInstance(xdr::ScVal),
     #[error("unexpected contract code got token")]
     UnexpectedToken(ContractDataEntry),
-    #[error("validation error: {0}")]
-    ValidationError(String),
     #[error("Fee was too large {0}")]
     LargeFee(u64),
     #[error("Cannot authorize raw transactions")]
