@@ -94,7 +94,7 @@ pub enum Error {
     UnexpectedContractCodeDataType(LedgerEntryData),
     #[error("unexpected contract instance type: {0:?}")]
     UnexpectedContractInstance(xdr::ScVal),
-    #[error("unexpected contract code got token")]
+    #[error("unexpected contract code got token {0:?}")]
     UnexpectedToken(ContractDataEntry),
     #[error("Fee was too large {0}")]
     LargeFee(u64),
@@ -1065,23 +1065,7 @@ impl Client {
 
     ///
     /// # Errors
-    pub async fn get_remote_wasm(&self, contract_id: &[u8; 32]) -> Result<Vec<u8>, Error> {
-        match self.get_contract_data(contract_id).await? {
-            xdr::ContractDataEntry {
-                val:
-                    xdr::ScVal::ContractInstance(xdr::ScContractInstance {
-                        executable: xdr::ContractExecutable::Wasm(hash),
-                        ..
-                    }),
-                ..
-            } => self.get_remote_wasm_from_hash(hash).await,
-            scval => Err(Error::UnexpectedToken(scval)),
-        }
-    }
-
-    ///
-    /// # Errors
-    pub async fn get_remote_wasm_from_hash(&self, hash: xdr::Hash) -> Result<Vec<u8>, Error> {
+    pub async fn get_remote_wasm_from_hash(&self, hash: &Hash) -> Result<Vec<u8>, Error> {
         let code_key = LedgerKey::ContractCode(xdr::LedgerKeyContractCode { hash: hash.clone() });
         let contract_data = self.get_ledger_entries(&[code_key]).await?;
         let entries = contract_data.entries.unwrap_or_default();

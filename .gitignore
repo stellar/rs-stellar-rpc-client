@@ -1,2 +1,4 @@
 target/
 .soroban/
+.idea
+.vscode
