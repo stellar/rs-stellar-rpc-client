@@ -45,6 +45,7 @@ pub type LogEvents = fn(
 pub type LogResources = fn(resources: &SorobanResources) -> ();
 
 #[derive(thiserror::Error, Debug)]
+#[allow(deprecated)] // Can be removed once Error enum doesn't have any code marked deprecated inside
 pub enum Error {
     #[error(transparent)]
     InvalidAddress(#[from] stellar_strkey::DecodeError),
@@ -94,7 +95,8 @@ pub enum Error {
     UnexpectedContractCodeDataType(LedgerEntryData),
     #[error("unexpected contract instance type: {0:?}")]
     UnexpectedContractInstance(xdr::ScVal),
-    #[error("unexpected contract code got token")]
+    #[error("unexpected contract code got token {0:?}")]
+    #[deprecated(note = "To be removed in future versions")]
     UnexpectedToken(ContractDataEntry),
     #[error("Fee was too large {0}")]
     LargeFee(u64),
@@ -633,6 +635,7 @@ pub struct Client {
     http_client: Arc<HttpClient>,
 }
 
+#[allow(deprecated)] // Can be removed once Client doesn't have any code marked deprecated inside
 impl Client {
     ///
     /// # Errors
@@ -1065,6 +1068,7 @@ impl Client {
 
     ///
     /// # Errors
+    #[deprecated(note = "To be removed in future versions, use get_ledger_entries()")]
     pub async fn get_remote_wasm(&self, contract_id: &[u8; 32]) -> Result<Vec<u8>, Error> {
         match self.get_contract_data(contract_id).await? {
             xdr::ContractDataEntry {
@@ -1081,7 +1085,8 @@ impl Client {
 
     ///
     /// # Errors
-    pub async fn get_remote_wasm_from_hash(&self, hash: xdr::Hash) -> Result<Vec<u8>, Error> {
+    #[deprecated(note = "To be removed in future versions, use get_ledger_entries()")]
+    pub async fn get_remote_wasm_from_hash(&self, hash: Hash) -> Result<Vec<u8>, Error> {
         let code_key = LedgerKey::ContractCode(xdr::LedgerKeyContractCode { hash: hash.clone() });
         let contract_data = self.get_ledger_entries(&[code_key]).await?;
         let entries = contract_data.entries.unwrap_or_default();
