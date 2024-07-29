@@ -45,7 +45,7 @@ pub type LogEvents = fn(
 pub type LogResources = fn(resources: &SorobanResources) -> ();
 
 #[derive(thiserror::Error, Debug)]
-#[allow(deprecated)]
+#[allow(deprecated)] // Can be removed once Error enum doesn't have any code marked deprecated inside
 pub enum Error {
     #[error(transparent)]
     InvalidAddress(#[from] stellar_strkey::DecodeError),
@@ -635,7 +635,7 @@ pub struct Client {
     http_client: Arc<HttpClient>,
 }
 
-#[allow(deprecated)]
+#[allow(deprecated)] // Can be removed once Client doesn't have any code marked deprecated inside
 impl Client {
     ///
     /// # Errors
