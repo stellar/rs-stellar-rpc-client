@@ -45,6 +45,7 @@ pub type LogEvents = fn(
 pub type LogResources = fn(resources: &SorobanResources) -> ();
 
 #[derive(thiserror::Error, Debug)]
+#[allow(deprecated)]
 pub enum Error {
     #[error(transparent)]
     InvalidAddress(#[from] stellar_strkey::DecodeError),
@@ -634,6 +635,7 @@ pub struct Client {
     http_client: Arc<HttpClient>,
 }
 
+#[allow(deprecated)]
 impl Client {
     ///
     /// # Errors
