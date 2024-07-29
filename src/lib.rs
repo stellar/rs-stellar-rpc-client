@@ -1071,10 +1071,10 @@ impl Client {
         match self.get_contract_data(contract_id).await? {
             xdr::ContractDataEntry {
                 val:
-                xdr::ScVal::ContractInstance(xdr::ScContractInstance {
-                                                 executable: xdr::ContractExecutable::Wasm(hash),
-                                                 ..
-                                             }),
+                    xdr::ScVal::ContractInstance(xdr::ScContractInstance {
+                        executable: xdr::ContractExecutable::Wasm(hash),
+                        ..
+                    }),
                 ..
             } => self.get_remote_wasm_from_hash(hash).await,
             scval => Err(Error::UnexpectedToken(scval)),
