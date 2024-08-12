@@ -830,7 +830,7 @@ impl Client {
     /// # Errors
     #[deprecated(
         since = "21.5.0",
-        note = "This method is deprecated. Use `simulate_and_prepare_transaction` instead which returns the full `SimulateTransactionResponse` in addtion the the `Assembled` transaction."
+        note = "This method is deprecated. Use `simulate_and_prepare_transaction` instead which returns the full `SimulateTransactionResponse` in addition the the `Assembled` transaction."
     )]
     pub async fn simulate_and_assemble_transaction(
         &self,
