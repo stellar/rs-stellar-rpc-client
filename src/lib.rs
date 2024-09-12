@@ -1239,6 +1239,27 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_simulation_response() {
+        let repo_root = get_repo_root();
+        let fixture_path = repo_root
+            .join("src")
+            .join("fixtures")
+            .join("simulation_response.json");
+        let response_content =
+            fs::read_to_string(fixture_path).expect("Failed to read transactions_response.json");
+
+        // Parse the entire response
+        let full_response: serde_json::Value = serde_json::from_str(&response_content)
+            .expect("Failed to parse JSON from transactions_response.json");
+
+        // Extract the "result" field
+        let result = full_response["result"].clone();
+        // Parse the "result" content as GetTransactionsResponseRaw
+        let raw_response: SimulateTransactionResponse = serde_json::from_value(result)
+            .expect("Failed to parse 'result' into SimulateTransactionResponse");
+    }
+
+    #[test]
     fn test_rpc_url_default_ports() {
         // Default ports are added.
         let client = Client::new("http://example.com").unwrap();
