@@ -334,6 +334,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "data-encoding"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
+
+[[package]]
 name = "deranged"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1092,7 +1098,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha2",
- "stellar-strkey",
+ "stellar-strkey 0.0.11",
  "stellar-xdr",
  "termcolor",
  "termcolor_output",
@@ -1113,10 +1119,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "stellar-xdr"
-version = "21.2.0"
+name = "stellar-strkey"
+version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2675a71212ed39a806e415b0dbf4702879ff288ec7f5ee996dda42a135512b50"
+checksum = "0989c9a05eccbd08b60e603a1c7e3ed3ec92c0de73b8681fc964d272ab2b2697"
+dependencies = [
+ "crate-git-revision",
+ "data-encoding",
+]
+
+[[package]]
+name = "stellar-xdr"
+version = "22.0.0"
+source = "git+https://github.com/stellar/rs-stellar-xdr?rev=39d7dbb0c12bd422ee43a6e2e3277789da4eaac8#39d7dbb0c12bd422ee43a6e2e3277789da4eaac8"
 dependencies = [
  "base64 0.13.1",
  "crate-git-revision",
@@ -1124,7 +1139,7 @@ dependencies = [
  "hex",
  "serde",
  "serde_with",
- "stellar-strkey",
+ "stellar-strkey 0.0.8",
 ]
 
 [[package]]
