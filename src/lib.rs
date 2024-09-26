@@ -699,31 +699,8 @@ impl Client {
     }
 
     pub fn new_with_headers(base_url: &str, additional_headers: HeaderMap) -> Result<Self, Error> {
-        // Add the port to the base URL if there is no port explicitly included
-        // in the URL and the scheme allows us to infer a default port.
-        // Jsonrpsee requires a port to always be present even if one can be
-        // inferred. This may change: https://github.com/paritytech/jsonrpsee/issues/1048.
-        let uri = base_url.parse::<Uri>().map_err(Error::InvalidRpcUrl)?;
-        let mut parts = uri.into_parts();
-        if let (Some(scheme), Some(authority)) = (&parts.scheme, &parts.authority) {
-            if authority.port().is_none() {
-                let port = match scheme.as_str() {
-                    "http" => Some(80),
-                    "https" => Some(443),
-                    _ => None,
-                };
-                if let Some(port) = port {
-                    let host = authority.host();
-                    parts.authority = Some(
-                        Authority::from_str(&format!("{host}:{port}"))
-                            .map_err(Error::InvalidRpcUrl)?,
-                    );
-                }
-            }
-        }
-        let uri = Uri::from_parts(parts).map_err(Error::InvalidRpcUrlFromUriParts)?;
-        let base_url = Arc::from(uri.to_string());
-        tracing::trace!(?uri);
+        let mut client = Self::new(base_url)?;
+
         let mut headers = HeaderMap::new();
         headers.insert("X-Client-Name", unsafe {
             "soroban-cli".parse().unwrap_unchecked()
@@ -740,11 +717,9 @@ impl Client {
                 .set_headers(headers)
                 .build(&base_url)?,
         );
-        Ok(Self {
-            base_url,
-            timeout_in_secs: 30,
-            http_client,
-        })
+
+        client.http_client = http_client;
+        Ok(client)
     }
 
     #[must_use]
