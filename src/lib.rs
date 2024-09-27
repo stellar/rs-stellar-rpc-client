@@ -693,12 +693,15 @@ impl Client {
         let mut headers = Self::default_http_headers();
 
         for (key, value) in additional_headers {
-            headers.insert(key.unwrap(), value);
+            match key {
+                None => return Err(Error::InvalidResponse),
+                Some(k) => headers.insert(k, value),
+            };
         }
         let http_client = Arc::new(
             HttpClientBuilder::default()
                 .set_headers(headers)
-                .build(&base_url)?,
+                .build(base_url)?,
         );
 
         client.http_client = http_client;
@@ -726,7 +729,6 @@ impl Client {
     pub fn client(&self) -> &HttpClient {
         &self.http_client
     }
-
 
     ///
     /// # Errors
