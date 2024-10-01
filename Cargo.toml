@@ -17,12 +17,12 @@ crate-type = ["rlib"]
 
 
 [dependencies]
-stellar-xdr = { version = "=22.0.0", features = [
+stellar-xdr = { version = "=22.0.0-rc.1", features = [
     "curr",
     "std",
     "serde",
     "base64",
-], git = "https://github.com/stellar/rs-stellar-xdr", rev = "39d7dbb0c12bd422ee43a6e2e3277789da4eaac8" }
+] }
 stellar-strkey = "0.0.11"
 
 termcolor = "1.1.3"
