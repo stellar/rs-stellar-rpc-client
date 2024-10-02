@@ -119,12 +119,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "base32"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23ce669cd6c8588f79e15cf450314f9638f967fc5770ff1c7c1deb0925ea7cfa"
-
-[[package]]
 name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -332,6 +326,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "data-encoding"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
 
 [[package]]
 name = "deranged"
@@ -1103,20 +1103,20 @@ dependencies = [
 
 [[package]]
 name = "stellar-strkey"
-version = "0.0.8"
+version = "0.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12d2bf45e114117ea91d820a846fd1afbe3ba7d717988fee094ce8227a3bf8bd"
+checksum = "5e3aa3ed00e70082cb43febc1c2afa5056b9bb3e348bbb43d0cd0aa88a611144"
 dependencies = [
- "base32",
  "crate-git-revision",
+ "data-encoding",
  "thiserror",
 ]
 
 [[package]]
 name = "stellar-xdr"
-version = "21.2.0"
+version = "22.0.0-rc.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2675a71212ed39a806e415b0dbf4702879ff288ec7f5ee996dda42a135512b50"
+checksum = "c88dc0e928b9cb65ea43836b52560bb4ead3e32895f5019ca223dc7cd1966cbf"
 dependencies = [
  "base64 0.13.1",
  "crate-git-revision",
