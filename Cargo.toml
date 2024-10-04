@@ -17,7 +17,7 @@ crate-type = ["rlib"]
 
 
 [dependencies]
-stellar-strkey = "0.0.11"
+stellar-strkey = "0.0.8"
 stellar-xdr = { version = "=22.0.0-rc.1.1", features = ["curr", "std", "serde", "base64"] }
 
 termcolor = "1.1.3"
