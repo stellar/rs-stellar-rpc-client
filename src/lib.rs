@@ -139,7 +139,7 @@ pub struct GetTransactionResponseRaw {
     pub oldest_ledger: u32,
     #[serde(rename = "oldestLedgerCloseTime")]
     pub oldest_ledger_close_time: u32,
-    #[serde(rename = "transactionInfo")]
+    #[serde(flatten)]
     pub transaction_info: TransactionInfoRaw,
 }
 
