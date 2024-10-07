@@ -121,7 +121,6 @@ pub struct SendTransactionResponse {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionResponseRaw {
-    pub status: String,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
     #[serde(
@@ -131,7 +130,10 @@ pub struct GetTransactionResponseRaw {
     pub latest_ledger_close_time: i64,
     #[serde(rename = "oldestLedger")]
     pub oldest_ledger: u32,
-    #[serde(rename = "oldestLedgerCloseTime")]
+    #[serde(
+        rename = "oldestLedgerCloseTime",
+        deserialize_with = "deserialize_number_from_string"
+    )]
     pub oldest_ledger_close_time: u32,
     #[serde(flatten)]
     pub transaction_info: TransactionInfoRaw,
@@ -139,7 +141,6 @@ pub struct GetTransactionResponseRaw {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionResponse {
-    pub status: String,
     pub latest_ledger: u32,
     pub latest_ledger_close_time: i64,
     pub oldest_ledger: u32,
@@ -152,7 +153,6 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
 
     fn try_into(self) -> Result<GetTransactionResponse, Self::Error> {
         Ok(GetTransactionResponse {
-            status: self.status,
             latest_ledger: self.latest_ledger,
             latest_ledger_close_time: self.latest_ledger_close_time,
             oldest_ledger: self.oldest_ledger,
@@ -196,17 +196,27 @@ impl GetTransactionResponse {
             .filter(|e| matches!(e.event.type_, ContractEventType::Contract))
             .collect::<Vec<_>>())
     }
+
+    pub fn result(&self) -> Option<&xdr::TransactionResult> {
+        self.transaction_info.result.as_ref()
+    }
+
+    pub fn result_meta(&self) -> Option<&xdr::TransactionMeta> {
+        self.transaction_info.result_meta.as_ref()
+    }
+
+    pub fn envelope(&self) -> Option<&xdr::TransactionEnvelope> {
+        self.transaction_info.envelope.as_ref()
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct TransactionInfoRaw {
     pub status: String,
-    #[serde(rename = "txHash")]
-    pub transaction_hash: String,
     #[serde(rename = "applicationOrder")]
     pub application_order: i32,
-    #[serde(rename = "feeBump")]
-    pub fee_bump: bool,
+    #[serde(flatten)]
+    pub diff: Option<TransactionInfoDiffRaw>,
     #[serde(
         rename = "envelopeXdr",
         skip_serializing_if = "Option::is_none",
@@ -236,11 +246,30 @@ pub struct TransactionInfoRaw {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum TransactionInfoDiffRaw {
+    Protocol22 {
+        #[serde(rename = "txHash", default, skip_serializing_if = "Option::is_none")]
+        transaction_hash: Option<String>,
+        #[serde(rename = "feeBump")]
+        fee_bump: bool,
+    },
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum TransactionInfoDiff {
+    Protocol22 {
+        transaction_hash: Option<Hash>,
+        fee_bump: bool,
+    },
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct TransactionInfo {
     pub status: String,
-    pub transaction_hash: Hash,
     pub application_order: i32,
-    pub fee_bump: bool,
+    pub diff: Option<TransactionInfoDiff>,
     pub envelope: Option<xdr::TransactionEnvelope>,
     pub result: Option<xdr::TransactionResult>,
     pub result_meta: Option<xdr::TransactionMeta>,
@@ -254,7 +283,16 @@ impl TryInto<TransactionInfo> for TransactionInfoRaw {
     fn try_into(self) -> Result<TransactionInfo, Self::Error> {
         Ok(TransactionInfo {
             status: self.status,
-            transaction_hash: self.transaction_hash.parse()?,
+            diff: match self.diff {
+                Some(TransactionInfoDiffRaw::Protocol22 {
+                    transaction_hash,
+                    fee_bump,
+                }) => Some(TransactionInfoDiff::Protocol22 {
+                    transaction_hash: transaction_hash.as_deref().map(str::parse).transpose()?,
+                    fee_bump,
+                }),
+                _ => None,
+            },
             envelope: self
                 .envelope_xdr
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
@@ -268,14 +306,13 @@ impl TryInto<TransactionInfo> for TransactionInfoRaw {
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
                 .transpose()?,
             application_order: self.application_order,
-            fee_bump: self.fee_bump,
             ledger: self.ledger,
-            ledger_close_time: self.ledger_close_time,
             diagnostic_events_xdr: self
                 .diagnostic_events_xdr
                 .iter()
                 .map(|event| DiagnosticEvent::from_xdr_base64(event, Limits::none()))
                 .collect::<Result<Vec<_>, _>>()?,
+            ledger_close_time: self.ledger_close_time,
         })
     }
 }
@@ -507,14 +544,14 @@ pub struct GetEventsResponseRaw {
     pub events: Vec<EventRaw>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
-    pub cusor: String,
+    pub cusor: Option<String>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetEventsResponse {
     pub events: Vec<Event>,
     pub latest_ledger: u32,
-    pub cusor: String,
+    pub cusor: Option<String>,
 }
 
 impl TryInto<GetEventsResponse> for GetEventsResponseRaw {
@@ -580,12 +617,14 @@ pub struct EventRaw {
     #[serde(rename = "contractId")]
     pub contract_id: String,
     pub id: String,
-    #[serde(rename = "inSuccessfulContractCall")]
-    pub in_successful_contract_call: bool,
+    #[serde(rename = "pagingToken")]
+    pub paging_token: Option<String>,
     #[serde(rename = "txHash")]
-    pub transaction_hash: String,
     pub topic: Vec<String>,
     pub value: String,
+    #[serde(rename = "inSuccessfulContractCall")]
+    pub in_successful_contract_call: bool,
+    pub transaction_hash: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -595,10 +634,11 @@ pub struct Event {
     pub ledger_closed_at: String,
     pub contract_id: String,
     pub id: String,
-    pub in_successful_contract_call: bool,
-    pub transaction_hash: Hash,
+    pub paging_token: Option<String>,
     pub topic: Vec<ScVal>,
     pub value: ScVal,
+    pub in_successful_contract_call: bool,
+    pub transaction_hash: Hash,
 }
 
 impl TryInto<Event> for EventRaw {
@@ -611,14 +651,15 @@ impl TryInto<Event> for EventRaw {
             ledger_closed_at: self.ledger_closed_at,
             contract_id: self.contract_id,
             id: self.id,
-            in_successful_contract_call: self.in_successful_contract_call,
-            transaction_hash: self.transaction_hash.parse()?,
+            paging_token: self.paging_token,
             topic: self
                 .topic
                 .iter()
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
                 .collect::<Result<_, _>>()?,
             value: ReadXdr::from_xdr_base64(&self.value, Limits::none())?,
+            in_successful_contract_call: self.in_successful_contract_call,
+            transaction_hash: self.transaction_hash.parse()?,
         })
     }
 }
@@ -1011,7 +1052,7 @@ impl Client {
         let mut sleep_time = Duration::from_secs(1);
         loop {
             let response = self.get_transaction(tx_id).await?;
-            match response.status.as_str() {
+            match response.transaction_info.status.as_str() {
                 "SUCCESS" => {
                     // TODO: the caller should probably be printing this
                     tracing::trace!("{response:#?}");
@@ -1027,7 +1068,9 @@ impl Client {
                 }
                 "NOT_FOUND" => (),
                 _ => {
-                    return Err(Error::UnexpectedTransactionStatus(response.status));
+                    return Err(Error::UnexpectedTransactionStatus(
+                        response.transaction_info.status,
+                    ));
                 }
             };
             if start.elapsed() > timeout {
@@ -1307,26 +1350,25 @@ mod tests {
         panic!("Could not find repository root");
     }
 
-    #[test]
-    fn test_parse_get_transactions_response() {
+    fn read_fixture_file<T: jsonrpsee_core::DeserializeOwned>(filename: &str) -> T {
         let repo_root = get_repo_root();
-        let fixture_path = repo_root
-            .join("src")
-            .join("fixtures")
-            .join("transactions_response.json");
+        let fixture_path = repo_root.join("src").join("fixtures").join(filename);
         let response_content =
-            fs::read_to_string(fixture_path).expect("Failed to read transactions_response.json");
-
+            fs::read_to_string(fixture_path).expect("Failed to read fixture file");
         // Parse the entire response
         let full_response: serde_json::Value = serde_json::from_str(&response_content)
-            .expect("Failed to parse JSON from transactions_response.json");
+            .unwrap_or_else(|_| panic!("Failed to parse JSON from {filename}"));
 
         // Extract the "result" field
         let result = full_response["result"].clone();
         // Parse the "result" content as GetTransactionsResponseRaw
-        let raw_response: GetTransactionsResponseRaw = serde_json::from_value(result)
-            .expect("Failed to parse 'result' into GetTransactionsResponseRaw");
+        serde_json::from_value(result).expect("Failed to parse 'result'")
+    }
 
+    #[test]
+    fn parse_get_transactions_response() {
+        let raw_response: GetTransactionsResponseRaw =
+            read_fixture_file("curr_transactions_response.json");
         // Convert GetTransactionsResponseRaw to GetTransactionsResponse
         let response: GetTransactionsResponse = raw_response
             .try_into()
@@ -1339,12 +1381,43 @@ mod tests {
 
         // Additional assertions for specific transaction attributes
         assert_eq!(response.transactions[0].status, "SUCCESS");
-        //assert_eq!(response.transactions[0].application_order, 1);
-        //assert_eq!(response.transactions[0].ledger, 554000);
+        assert_eq!(response.transactions[0].application_order, 1);
+        assert_eq!(response.transactions[0].ledger, 554_000);
+        assert_eq!(response.transactions[0].ledger_close_time, 1_721_053_660);
     }
 
     #[test]
-    fn test_rpc_url_default_ports() {
+    fn parse_get_transaction_response() {
+        // Parse the "result" content as GetTransactionsResponseRaw
+        let raw_response: GetTransactionResponseRaw =
+            read_fixture_file("curr_transaction_response.json");
+        // Convert GetTransactionsResponseRaw to GetTransactionsResponse
+        let response: GetTransactionResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
+        assert_eq!(response.transaction_info.diagnostic_events_xdr.len(), 21);
+        assert_eq!(response.transaction_info.status, "SUCCESS");
+        assert_eq!(response.transaction_info.application_order, 251);
+        assert_eq!(response.transaction_info.ledger_close_time, 1_728_063_066);
+        assert_eq!(response.latest_ledger, 53_794_558);
+        assert_eq!(response.oldest_ledger, 53_777_279);
+        assert_eq!(response.oldest_ledger_close_time, 1_727_963_878);
+        assert_eq!(response.latest_ledger_close_time, 1_728_063_258);
+        assert_eq!(response.transaction_info.ledger, 53_794_524);
+    }
+
+    #[test]
+    fn parse_curr_simulation_response() {
+        let raw_response: SimulateTransactionResponse =
+            read_fixture_file("curr_simulation_response.json");
+        assert_eq!(raw_response.min_resource_fee, 92487);
+        assert_eq!(raw_response.latest_ledger, 53_795_023);
+        assert_eq!(raw_response.results.len(), 1);
+        assert_eq!(raw_response.events().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn rpc_url_default_ports() {
         // Default ports are added.
         let client = Client::new("http://example.com").unwrap();
         assert_eq!(client.base_url(), "http://example.com:80/");
@@ -1375,7 +1448,7 @@ mod tests {
     #[test]
     // Taken from [RPC server
     // tests](https://github.com/stellar/soroban-tools/blob/main/cmd/soroban-rpc/internal/methods/get_events_test.go#L21).
-    fn test_does_topic_match() {
+    fn topic_match() {
         struct TestCase<'a> {
             name: &'a str,
             filter: Vec<&'a str>,

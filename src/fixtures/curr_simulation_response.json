@@ -1,0 +1,23 @@
+{
+    "jsonrpc": "2.0",
+    "id": 8675309,
+    "result": {
+      "transactionData": "AAAAAAAAAAIAAAAGAAAAASxiqIvl5E+k9crKi8h1V87Ud/UtOOfWNftOQUbizvLRAAAAFAAAAAEAAAAHtG6wcUh/yelE4Mo5xb8iCSWybOS5ZuiiNrZ/Ps7wmesAAAAAAGYCGQAAHmwAAAAAAAAAAAABaUc=",
+      "minResourceFee": "92487",
+      "events": [
+        "AAAAAQAAAAAAAAAAAAAAAgAAAAAAAAADAAAADwAAAAdmbl9jYWxsAAAAAA0AAAAgLGKoi+XkT6T1ysqLyHVXztR39S0459Y1+05BRuLO8tEAAAAPAAAACWdldF9hZG1pbgAAAAAAAAE=",
+        "AAAAAQAAAAAAAAABLGKoi+XkT6T1ysqLyHVXztR39S0459Y1+05BRuLO8tEAAAACAAAAAAAAAAIAAAAPAAAACWZuX3JldHVybgAAAAAAAA8AAAAJZ2V0X2FkbWluAAAAAAAAEgAAAAAAAAAAZhscwQWxblWcuoqgH9hR7LnJ7IEonYTcPa9GWIRKJrY="
+      ],
+      "results": [
+        {
+          "auth": [],
+          "xdr": "AAAAEgAAAAAAAAAAZhscwQWxblWcuoqgH9hR7LnJ7IEonYTcPa9GWIRKJrY="
+        }
+      ],
+      "cost": {
+        "cpuInsns": "3685209",
+        "memBytes": "1751351"
+      },
+      "latestLedger": 53795023
+    }
+  }
