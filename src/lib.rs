@@ -711,7 +711,7 @@ impl Client {
     fn default_http_headers() -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert("X-Client-Name", unsafe {
-            "soroban-cli".parse().unwrap_unchecked()
+            "rs-stellar-rpc-client".parse().unwrap_unchecked()
         });
         let version = VERSION.unwrap_or("devel");
         headers.insert("X-Client-Version", unsafe {
