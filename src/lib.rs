@@ -245,6 +245,8 @@ pub struct TransactionInfoRaw {
     pub diagnostic_events_xdr: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ledger: Option<u32>,
+    #[serde(flatten)]
+    pub close_time: Option<CloseTime>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -255,20 +257,24 @@ pub enum TransactionInfoDiffRaw {
         transaction_hash: Option<String>,
         #[serde(rename = "feeBump")]
         fee_bump: bool,
-        #[serde(
-            rename = "createdAt",
-            deserialize_with = "deserialize_number_from_string"
-        )]
-        ledger_close_time: i64,
     },
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-#[serde(untagged)]
 pub enum TransactionInfoDiff {
     Protocol22 {
         transaction_hash: Option<Hash>,
         fee_bump: bool,
+    },
+}
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum CloseTime {
+    Protocol22 {
+        #[serde(
+            rename = "createdAt",
+            deserialize_with = "deserialize_number_from_string"
+        )]
         ledger_close_time: i64,
     },
 }
@@ -283,14 +289,13 @@ pub struct TransactionInfo {
     pub result_meta: Option<xdr::TransactionMeta>,
     pub diagnostic_events_xdr: Vec<DiagnosticEvent>,
     pub ledger: Option<u32>,
+    pub close_time: Option<CloseTime>,
 }
 
 impl TransactionInfo {
     pub fn ledger_close_time(&self) -> Option<i64> {
-        self.diff.as_ref().map(|d| match d {
-            TransactionInfoDiff::Protocol22 {
-                ledger_close_time, ..
-            } => *ledger_close_time,
+        self.close_time.as_ref().map(|d| match d {
+            CloseTime::Protocol22 { ledger_close_time } => *ledger_close_time,
         })
     }
 }
@@ -304,11 +309,9 @@ impl TryInto<TransactionInfo> for TransactionInfoRaw {
                 Some(TransactionInfoDiffRaw::Protocol22 {
                     transaction_hash,
                     fee_bump,
-                    ledger_close_time,
                 }) => Some(TransactionInfoDiff::Protocol22 {
                     transaction_hash: transaction_hash.as_deref().map(str::parse).transpose()?,
                     fee_bump,
-                    ledger_close_time,
                 }),
                 _ => None,
             },
@@ -322,6 +325,7 @@ impl TryInto<TransactionInfo> for TransactionInfoRaw {
                 .iter()
                 .map(|event| from_xdr(event))
                 .collect::<Result<Vec<_>, _>>()?,
+            close_time: self.close_time,
         })
     }
 }
