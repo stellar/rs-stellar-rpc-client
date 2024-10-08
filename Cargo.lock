@@ -119,12 +119,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "base32"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23ce669cd6c8588f79e15cf450314f9638f967fc5770ff1c7c1deb0925ea7cfa"
-
-[[package]]
 name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1098,24 +1092,13 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha2",
- "stellar-strkey 0.0.8",
+ "stellar-strkey",
  "stellar-xdr",
  "termcolor",
  "termcolor_output",
  "thiserror",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "stellar-strkey"
-version = "0.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12d2bf45e114117ea91d820a846fd1afbe3ba7d717988fee094ce8227a3bf8bd"
-dependencies = [
- "base32",
- "crate-git-revision",
- "thiserror",
 ]
 
 [[package]]
@@ -1141,7 +1124,7 @@ dependencies = [
  "hex",
  "serde",
  "serde_with",
- "stellar-strkey 0.0.9",
+ "stellar-strkey",
 ]
 
 [[package]]
