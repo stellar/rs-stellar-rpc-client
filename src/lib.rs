@@ -12,8 +12,8 @@ use stellar_xdr::curr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
     Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
     Limited, Limits, PublicKey, ReadXdr, ScContractInstance, SorobanAuthorizationEntry,
-    SorobanResources, SorobanTransactionData, Transaction, TransactionEnvelope, TransactionMeta,
-    TransactionMetaV3, TransactionResult, TransactionV1Envelope, Uint256, VecM, WriteXdr,
+    SorobanResources, SorobanTransactionData, TransactionEnvelope, TransactionMeta,
+    TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
 };
 
 use std::{
@@ -28,13 +28,7 @@ use termcolor::{Color, ColorChoice, StandardStream, WriteColor};
 use termcolor_output::colored;
 use tokio::time::sleep;
 
-pub mod log;
-mod txn;
-
-pub use txn::Assembled;
-
 const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
-pub(crate) const DEFAULT_TRANSACTION_FEES: u32 = 100;
 
 pub type LogEvents = fn(
     footprint: &LedgerFootprint,
@@ -846,27 +840,6 @@ impl Client {
     ) -> Result<GetTransactionResponse, Error> {
         let hash = self.send_transaction(tx).await?;
         self.get_transaction_polling(&hash, None).await
-    }
-
-    ///
-    /// # Errors
-    pub async fn simulate_and_assemble_transaction(
-        &self,
-        tx: &Transaction,
-    ) -> Result<Assembled, Error> {
-        let sim_res = self
-            .simulate_transaction_envelope(&TransactionEnvelope::Tx(TransactionV1Envelope {
-                tx: tx.clone(),
-                signatures: VecM::default(),
-            }))
-            .await?;
-        match sim_res.error {
-            None => Ok(Assembled::new(tx, sim_res)?),
-            Some(e) => {
-                log::diagnostic_events(&sim_res.events, tracing::Level::ERROR);
-                Err(Error::TransactionSimulationFailed(e))
-            }
-        }
     }
 
     ///
