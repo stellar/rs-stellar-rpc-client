@@ -1433,7 +1433,10 @@ mod tests {
         let raw_response: GetEventsResponseRaw = read_fixture_file("new_event_response.json");
         let response: GetEventsResponse = raw_response.try_into().unwrap();
         assert_eq!(response.latest_ledger, 3266);
-        assert_eq!(response.cursor.as_deref(), Some("0000012859132096512-0000000017"));
+        assert_eq!(
+            response.cursor.as_deref(),
+            Some("0000012859132096512-0000000017")
+        );
         assert_eq!(response.events.len(), 100);
     }
 
