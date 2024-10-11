@@ -687,10 +687,7 @@ impl Client {
         let mut headers = Self::default_http_headers();
 
         for (key, value) in additional_headers {
-            match key {
-                None => return Err(Error::InvalidResponse),
-                Some(k) => headers.insert(k, value),
-            };
+            headers.insert(key.ok_or(Error::InvalidResponse)?, value);
         }
         let http_client = Arc::new(
             HttpClientBuilder::default()
