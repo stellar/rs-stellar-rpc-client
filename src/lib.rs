@@ -221,8 +221,10 @@ pub struct TransactionInfoRaw {
     pub status: String,
     #[serde(rename = "applicationOrder")]
     pub application_order: Option<i32>,
-    #[serde(flatten)]
-    pub diff: Option<TransactionInfoDiffRaw>,
+    #[serde(rename = "txHash", default, skip_serializing_if = "Option::is_none")]
+    pub transaction_hash: Option<String>,
+    #[serde(rename = "feeBump")]
+    pub fee_bump: Option<bool>,
     #[serde(
         rename = "envelopeXdr",
         skip_serializing_if = "Option::is_none",
@@ -251,24 +253,6 @@ pub struct TransactionInfoRaw {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 #[serde(untagged)]
-pub enum TransactionInfoDiffRaw {
-    Protocol22 {
-        #[serde(rename = "txHash", default, skip_serializing_if = "Option::is_none")]
-        transaction_hash: Option<String>,
-        #[serde(rename = "feeBump")]
-        fee_bump: bool,
-    },
-}
-
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub enum TransactionInfoDiff {
-    Protocol22 {
-        transaction_hash: Option<Hash>,
-        fee_bump: bool,
-    },
-}
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-#[serde(untagged)]
 pub enum CloseTime {
     Protocol22 {
         #[serde(
@@ -283,7 +267,8 @@ pub enum CloseTime {
 pub struct TransactionInfo {
     pub status: String,
     pub application_order: Option<i32>,
-    pub diff: Option<TransactionInfoDiff>,
+    pub transaction_hash: Option<Hash>,
+    pub fee_bump: bool,
     pub envelope: Option<xdr::TransactionEnvelope>,
     pub result: Option<xdr::TransactionResult>,
     pub result_meta: Option<xdr::TransactionMeta>,
@@ -305,16 +290,13 @@ impl TryInto<TransactionInfo> for TransactionInfoRaw {
     fn try_into(self) -> Result<TransactionInfo, Self::Error> {
         Ok(TransactionInfo {
             status: self.status,
-            diff: match self.diff {
-                Some(TransactionInfoDiffRaw::Protocol22 {
-                    transaction_hash,
-                    fee_bump,
-                }) => Some(TransactionInfoDiff::Protocol22 {
-                    transaction_hash: transaction_hash.as_deref().map(str::parse).transpose()?,
-                    fee_bump,
-                }),
-                _ => None,
-            },
+            transaction_hash: self
+                .transaction_hash
+                .as_deref()
+                .and_then(|x| (!x.is_empty()).then_some(x))
+                .map(from_xdr)
+                .transpose()?,
+            fee_bump: self.fee_bump.unwrap_or_default(),
             envelope: self.envelope_xdr.as_deref().map(from_xdr).transpose()?,
             result: self.result_xdr.as_deref().map(from_xdr).transpose()?,
             result_meta: self.result_meta_xdr.as_deref().map(from_xdr).transpose()?,
@@ -547,14 +529,14 @@ pub struct GetEventsResponseRaw {
     pub events: Vec<EventRaw>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
-    pub cusor: Option<String>,
+    pub cursor: Option<String>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetEventsResponse {
     pub events: Vec<Event>,
     pub latest_ledger: u32,
-    pub cusor: Option<String>,
+    pub cursor: Option<String>,
 }
 
 impl TryInto<GetEventsResponse> for GetEventsResponseRaw {
@@ -568,7 +550,7 @@ impl TryInto<GetEventsResponse> for GetEventsResponseRaw {
                 .map(TryInto::try_into)
                 .collect::<Result<Vec<_>, _>>()?,
             latest_ledger: self.latest_ledger,
-            cusor: self.cusor,
+            cursor: self.cursor,
         })
     }
 }
@@ -620,14 +602,15 @@ pub struct EventRaw {
     #[serde(rename = "contractId")]
     pub contract_id: String,
     pub id: String,
-    #[serde(rename = "pagingToken")]
-    pub paging_token: Option<String>,
-    #[serde(rename = "txHash")]
-    pub topic: Vec<String>,
-    pub value: String,
     #[serde(rename = "inSuccessfulContractCall")]
     pub in_successful_contract_call: bool,
+    #[serde(rename = "txHash")]
     pub transaction_hash: String,
+    pub topic: Vec<String>,
+    pub value: String,
+    /// Deprecated
+    #[serde(rename = "pagingToken")]
+    pub paging_token: Option<String>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -1350,7 +1333,7 @@ mod tests {
     fn read_fixture_file<T: jsonrpsee_core::DeserializeOwned>(filename: &str) -> T {
         let repo_root = get_repo_root();
         let fixture_path = repo_root.join("src").join("fixtures").join(filename);
-        let response_content =
+        let response_content: String =
             fs::read_to_string(fixture_path).expect("Failed to read fixture file");
         // Parse the entire response
         let full_response: serde_json::Value = serde_json::from_str(&response_content)
@@ -1410,6 +1393,32 @@ mod tests {
     }
 
     #[test]
+    fn parse_new_get_transaction_response() {
+        // Parse the "result" content as GetTransactionsResponseRaw
+        let raw_response: GetTransactionResponseRaw =
+            read_fixture_file("new_transaction_response.json");
+        println!("{raw_response:#?}");
+        // Convert GetTransactionsResponseRaw to GetTransactionsResponse
+        let response: GetTransactionResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
+        assert_eq!(response.transaction_info.diagnostic_events_xdr.len(), 21);
+        assert_eq!(response.transaction_info.status, "SUCCESS");
+        assert_eq!(response.transaction_info.application_order, Some(1));
+        assert_eq!(
+            response.transaction_info.ledger_close_time(),
+            Some(1_728_668_111)
+        );
+        assert_eq!(response.latest_ledger, 525);
+        assert_eq!(response.oldest_ledger, 8);
+        assert_eq!(response.oldest_ledger_close_time, 1_728_667_648);
+        assert_eq!(response.latest_ledger_close_time, 1_728_668_165);
+        assert_eq!(response.transaction_info.ledger, Some(471));
+        assert!(!response.transaction_info.fee_bump);
+        assert!(response.transaction_info.transaction_hash.is_none());
+    }
+
+    #[test]
     fn parse_curr_simulation_response() {
         let raw_response: SimulateTransactionResponse =
             read_fixture_file("curr_simulation_response.json");
@@ -1417,6 +1426,15 @@ mod tests {
         assert_eq!(raw_response.latest_ledger, 53_795_023);
         assert_eq!(raw_response.results.len(), 1);
         assert_eq!(raw_response.events().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn parse_new_get_events_response() {
+        let raw_response: GetEventsResponseRaw = read_fixture_file("new_event_response.json");
+        let response: GetEventsResponse = raw_response.try_into().unwrap();
+        assert_eq!(response.latest_ledger, 3266);
+        assert_eq!(response.cursor.as_deref(), Some("0000012859132096512-0000000017"));
+        assert_eq!(response.events.len(), 100);
     }
 
     #[test]
