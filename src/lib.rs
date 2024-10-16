@@ -10,12 +10,13 @@ use serde_aux::prelude::{
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
-    Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
-    Limited, Limits, PublicKey, ReadXdr, ScContractInstance, SorobanAuthorizationEntry,
-    SorobanResources, SorobanTransactionData, TransactionEnvelope, TransactionMeta,
-    TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
+    Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, Limits,
+    ReadXdr, ScContractInstance, ScVal, SorobanAuthorizationEntry, SorobanResources,
+    SorobanTransactionData, TransactionEnvelope, TransactionMeta, TransactionMetaV3,
+    TransactionResult, VecM, WriteXdr,
 };
 
+use std::ops::Deref;
 use std::{
     f64::consts::E,
     fmt::Display,
@@ -29,6 +30,7 @@ use termcolor_output::colored;
 use tokio::time::sleep;
 
 const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
+const MAX_DEPTH: u32 = 1000;
 
 pub type LogEvents = fn(
     footprint: &LedgerFootprint,
@@ -100,6 +102,10 @@ pub enum Error {
     MissingOp,
 }
 
+fn from_xdr<T: ReadXdr>(x: &str) -> Result<T, xdr::Error> {
+    T::from_xdr_base64(x, Limits::depth(MAX_DEPTH))
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct SendTransactionResponse {
     pub hash: String,
@@ -121,30 +127,31 @@ pub struct SendTransactionResponse {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionResponseRaw {
-    pub status: String,
+    #[serde(rename = "latestLedger")]
+    pub latest_ledger: u32,
     #[serde(
-        rename = "envelopeXdr",
-        skip_serializing_if = "Option::is_none",
-        default
+        rename = "latestLedgerCloseTime",
+        deserialize_with = "deserialize_number_from_string"
     )]
-    pub envelope_xdr: Option<String>,
-    #[serde(rename = "resultXdr", skip_serializing_if = "Option::is_none", default)]
-    pub result_xdr: Option<String>,
+    pub latest_ledger_close_time: i64,
+    #[serde(rename = "oldestLedger")]
+    pub oldest_ledger: u32,
     #[serde(
-        rename = "resultMetaXdr",
-        skip_serializing_if = "Option::is_none",
-        default
+        rename = "oldestLedgerCloseTime",
+        deserialize_with = "deserialize_number_from_string"
     )]
-    pub result_meta_xdr: Option<String>,
-    // TODO: add ledger info and application order
+    pub oldest_ledger_close_time: u32,
+    #[serde(flatten)]
+    pub transaction_info: TransactionInfoRaw,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionResponse {
-    pub status: String,
-    pub envelope: Option<xdr::TransactionEnvelope>,
-    pub result: Option<xdr::TransactionResult>,
-    pub result_meta: Option<xdr::TransactionMeta>,
+    pub latest_ledger: u32,
+    pub latest_ledger_close_time: i64,
+    pub oldest_ledger: u32,
+    pub oldest_ledger_close_time: u32,
+    pub transaction_info: TransactionInfo,
 }
 
 impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
@@ -152,19 +159,11 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
 
     fn try_into(self) -> Result<GetTransactionResponse, Self::Error> {
         Ok(GetTransactionResponse {
-            status: self.status,
-            envelope: self
-                .envelope_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
-                .transpose()?,
-            result: self
-                .result_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
-                .transpose()?,
-            result_meta: self
-                .result_meta_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
-                .transpose()?,
+            latest_ledger: self.latest_ledger,
+            latest_ledger_close_time: self.latest_ledger_close_time,
+            oldest_ledger: self.oldest_ledger,
+            oldest_ledger_close_time: self.oldest_ledger_close_time,
+            transaction_info: self.transaction_info.try_into()?,
         })
     }
 }
@@ -176,7 +175,7 @@ impl GetTransactionResponse {
         if let Some(xdr::TransactionMeta::V3(xdr::TransactionMetaV3 {
             soroban_meta: Some(xdr::SorobanTransactionMeta { return_value, .. }),
             ..
-        })) = &self.result_meta
+        })) = &self.transaction_info.result_meta
         {
             Ok(return_value.clone())
         } else {
@@ -187,7 +186,8 @@ impl GetTransactionResponse {
     ///
     /// # Errors
     pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
-        self.result_meta
+        self.transaction_info
+            .result_meta
             .as_ref()
             .map(extract_events)
             .ok_or(Error::MissingOp)
@@ -202,12 +202,120 @@ impl GetTransactionResponse {
             .filter(|e| matches!(e.event.type_, ContractEventType::Contract))
             .collect::<Vec<_>>())
     }
+
+    pub fn result(&self) -> Option<&xdr::TransactionResult> {
+        self.transaction_info.result.as_ref()
+    }
+
+    pub fn result_meta(&self) -> Option<&xdr::TransactionMeta> {
+        self.transaction_info.result_meta.as_ref()
+    }
+
+    pub fn envelope(&self) -> Option<&xdr::TransactionEnvelope> {
+        self.transaction_info.envelope.as_ref()
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct TransactionInfoRaw {
+    pub status: String,
+    #[serde(rename = "applicationOrder")]
+    pub application_order: Option<i32>,
+    #[serde(rename = "txHash", default, skip_serializing_if = "Option::is_none")]
+    pub transaction_hash: Option<String>,
+    #[serde(rename = "feeBump")]
+    pub fee_bump: Option<bool>,
+    #[serde(
+        rename = "envelopeXdr",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub envelope_xdr: Option<String>,
+    #[serde(rename = "resultXdr", skip_serializing_if = "Option::is_none", default)]
+    pub result_xdr: Option<String>,
+    #[serde(
+        rename = "resultMetaXdr",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub result_meta_xdr: Option<String>,
+    #[serde(
+        rename = "diagnosticEventsXdr",
+        skip_serializing_if = "Vec::is_empty",
+        default
+    )]
+    pub diagnostic_events_xdr: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ledger: Option<u32>,
+    #[serde(flatten)]
+    pub close_time: Option<CloseTime>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum CloseTime {
+    Protocol22 {
+        #[serde(
+            rename = "createdAt",
+            deserialize_with = "deserialize_number_from_string"
+        )]
+        ledger_close_time: i64,
+    },
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct TransactionInfo {
+    pub status: String,
+    pub application_order: Option<i32>,
+    pub transaction_hash: Option<Hash>,
+    pub fee_bump: bool,
+    pub envelope: Option<xdr::TransactionEnvelope>,
+    pub result: Option<xdr::TransactionResult>,
+    pub result_meta: Option<xdr::TransactionMeta>,
+    pub diagnostic_events_xdr: Vec<DiagnosticEvent>,
+    pub ledger: Option<u32>,
+    pub close_time: Option<CloseTime>,
+}
+
+impl TransactionInfo {
+    pub fn ledger_close_time(&self) -> Option<i64> {
+        self.close_time.as_ref().map(|d| match d {
+            CloseTime::Protocol22 { ledger_close_time } => *ledger_close_time,
+        })
+    }
+}
+
+impl TryInto<TransactionInfo> for TransactionInfoRaw {
+    type Error = xdr::Error;
+    fn try_into(self) -> Result<TransactionInfo, Self::Error> {
+        Ok(TransactionInfo {
+            status: self.status,
+            transaction_hash: self
+                .transaction_hash
+                .as_deref()
+                .and_then(|x| (!x.is_empty()).then_some(x))
+                .map(from_xdr)
+                .transpose()?,
+            fee_bump: self.fee_bump.unwrap_or_default(),
+            envelope: self.envelope_xdr.as_deref().map(from_xdr).transpose()?,
+            result: self.result_xdr.as_deref().map(from_xdr).transpose()?,
+            result_meta: self.result_meta_xdr.as_deref().map(from_xdr).transpose()?,
+            application_order: self.application_order,
+            ledger: self.ledger,
+            diagnostic_events_xdr: self
+                .diagnostic_events_xdr
+                .iter()
+                .map(|event| from_xdr(event))
+                .collect::<Result<Vec<_>, _>>()?,
+            close_time: self.close_time,
+        })
+    }
 }
 
 #[serde_as]
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionsResponseRaw {
-    pub transactions: Vec<GetTransactionResponseRaw>,
+    pub transactions: Vec<TransactionInfoRaw>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
     #[serde(rename = "latestLedgerCloseTimestamp")]
@@ -221,7 +329,7 @@ pub struct GetTransactionsResponseRaw {
 }
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionsResponse {
-    pub transactions: Vec<GetTransactionResponse>,
+    pub transactions: Vec<TransactionInfo>,
     pub latest_ledger: u32,
     pub latest_ledger_close_time: i64,
     pub oldest_ledger: u32,
@@ -307,20 +415,6 @@ pub struct GetLatestLedgerResponse {
     pub sequence: u32,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
-pub struct Cost {
-    #[serde(
-        rename = "cpuInsns",
-        deserialize_with = "deserialize_number_from_string"
-    )]
-    pub cpu_insns: u64,
-    #[serde(
-        rename = "memBytes",
-        deserialize_with = "deserialize_number_from_string"
-    )]
-    pub mem_bytes: u64,
-}
-
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct SimulateHostFunctionResultRaw {
     #[serde(deserialize_with = "deserialize_default_from_null")]
@@ -351,16 +445,8 @@ pub enum LedgerEntryChange {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct SimulateTransactionResponse {
-    #[serde(
-        rename = "minResourceFee",
-        deserialize_with = "deserialize_number_from_string",
-        default
-    )]
-    pub min_resource_fee: u64,
-    #[serde(default)]
-    pub cost: Cost,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub results: Vec<SimulateHostFunctionResultRaw>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub error: Option<String>,
     #[serde(rename = "transactionData", default)]
     pub transaction_data: String,
     #[serde(
@@ -369,6 +455,14 @@ pub struct SimulateTransactionResponse {
         default
     )]
     pub events: Vec<String>,
+    #[serde(
+        rename = "minResourceFee",
+        deserialize_with = "deserialize_number_from_string",
+        default
+    )]
+    pub min_resource_fee: u64,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub results: Vec<SimulateHostFunctionResultRaw>,
     #[serde(
         rename = "restorePreamble",
         skip_serializing_if = "Option::is_none",
@@ -383,8 +477,6 @@ pub struct SimulateTransactionResponse {
     pub state_changes: Option<Vec<LedgerEntryChange>>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub error: Option<String>,
 }
 
 impl SimulateTransactionResponse {
@@ -398,14 +490,10 @@ impl SimulateTransactionResponse {
                     auth: r
                         .auth
                         .iter()
-                        .map(|a| {
-                            Ok(SorobanAuthorizationEntry::from_xdr_base64(
-                                a,
-                                Limits::none(),
-                            )?)
-                        })
-                        .collect::<Result<_, Error>>()?,
-                    xdr: xdr::ScVal::from_xdr_base64(&r.xdr, Limits::none())?,
+                        .map(Deref::deref)
+                        .map(from_xdr)
+                        .collect::<Result<_, xdr::Error>>()?,
+                    xdr: from_xdr(&r.xdr)?,
                 })
             })
             .collect()
@@ -414,19 +502,13 @@ impl SimulateTransactionResponse {
     ///
     /// # Errors
     pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
-        self.events
-            .iter()
-            .map(|e| Ok(DiagnosticEvent::from_xdr_base64(e, Limits::none())?))
-            .collect()
+        self.events.iter().map(|e| Ok(from_xdr(e)?)).collect()
     }
 
     ///
     /// # Errors
     pub fn transaction_data(&self) -> Result<SorobanTransactionData, Error> {
-        Ok(SorobanTransactionData::from_xdr_base64(
-            &self.transaction_data,
-            Limits::none(),
-        )?)
+        Ok(from_xdr(&self.transaction_data)?)
     }
 }
 
@@ -442,11 +524,48 @@ pub struct RestorePreamble {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct GetEventsResponse {
+pub struct GetEventsResponseRaw {
     #[serde(deserialize_with = "deserialize_default_from_null")]
-    pub events: Vec<Event>,
+    pub events: Vec<EventRaw>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
+    pub cursor: Option<String>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetEventsResponse {
+    pub events: Vec<Event>,
+    pub latest_ledger: u32,
+    pub cursor: Option<String>,
+}
+
+impl TryInto<GetEventsResponse> for GetEventsResponseRaw {
+    type Error = xdr::Error;
+
+    fn try_into(self) -> Result<GetEventsResponse, Self::Error> {
+        Ok(GetEventsResponse {
+            events: self
+                .events
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, _>>()?,
+            latest_ledger: self.latest_ledger,
+            cursor: self.cursor,
+        })
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetVersionInfoResponse {
+    pub version: String,
+    #[serde(rename = "commitHash")]
+    pub commit_hash: String,
+    #[serde(rename = "buildTimestamp")]
+    pub build_timestamp: String,
+    #[serde(rename = "captiveCoreVersion")]
+    pub captive_core_version: String,
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: u32,
 }
 
 // Determines whether or not a particular filter matches a topic based on the
@@ -474,47 +593,82 @@ pub fn does_topic_match(topic: &[String], filter: &[String]) -> bool {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct Event {
+pub struct EventRaw {
     #[serde(rename = "type")]
     pub event_type: String,
-
     pub ledger: u32,
     #[serde(rename = "ledgerClosedAt")]
     pub ledger_closed_at: String,
-
-    pub id: String,
-    #[serde(rename = "pagingToken")]
-    pub paging_token: String,
-
     #[serde(rename = "contractId")]
     pub contract_id: String,
+    pub id: String,
+    #[serde(rename = "inSuccessfulContractCall")]
+    pub in_successful_contract_call: bool,
+    #[serde(rename = "txHash")]
+    pub transaction_hash: String,
     pub topic: Vec<String>,
     pub value: String,
+    /// Deprecated
+    #[serde(rename = "pagingToken")]
+    pub paging_token: Option<String>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct Event {
+    pub event_type: String,
+    pub ledger: u32,
+    pub ledger_closed_at: String,
+    pub contract_id: String,
+    pub id: String,
+    pub paging_token: Option<String>,
+    pub topic: Vec<ScVal>,
+    pub value: ScVal,
+    pub in_successful_contract_call: bool,
+    pub transaction_hash: Hash,
+}
+
+impl TryInto<Event> for EventRaw {
+    type Error = xdr::Error;
+
+    fn try_into(self) -> Result<Event, Self::Error> {
+        Ok(Event {
+            event_type: self.event_type,
+            ledger: self.ledger,
+            ledger_closed_at: self.ledger_closed_at,
+            contract_id: self.contract_id,
+            id: self.id,
+            paging_token: self.paging_token,
+            topic: self
+                .topic
+                .iter()
+                .map(Deref::deref)
+                .map(from_xdr)
+                .collect::<Result<_, _>>()?,
+            value: from_xdr(&self.value)?,
+            in_successful_contract_call: self.in_successful_contract_call,
+            transaction_hash: self.transaction_hash.parse()?,
+        })
+    }
 }
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "Event {} [{}]:",
-            self.paging_token,
-            self.event_type.to_ascii_uppercase()
-        )?;
-        writeln!(
-            f,
-            "  Ledger:   {} (closed at {})",
-            self.ledger, self.ledger_closed_at
-        )?;
-        writeln!(f, "  Contract: {}", self.contract_id)?;
+        let Self {
+            id,
+            ledger,
+            ledger_closed_at,
+            contract_id,
+            value,
+            ..
+        } = self;
+        writeln!(f, "Event {id} [{}]:", self.event_type.to_ascii_uppercase())?;
+        writeln!(f, "  Ledger:   {ledger} (closed at {ledger_closed_at})",)?;
+        writeln!(f, "  Contract: {contract_id}")?;
         writeln!(f, "  Topics:")?;
         for topic in &self.topic {
-            let scval =
-                xdr::ScVal::from_xdr_base64(topic, Limits::none()).map_err(|_| std::fmt::Error)?;
-            writeln!(f, "            {scval:?}")?;
+            writeln!(f, "            {topic:?}")?;
         }
-        let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::none())
-            .map_err(|_| std::fmt::Error)?;
-        writeln!(f, "  Value:    {scval:?}")
+        writeln!(f, "  Value:    {value:?}")
     }
 }
 
@@ -543,7 +697,7 @@ impl Event {
             bold!(true),
             bold!(false),
             fg!(Some(Color::Green)),
-            self.paging_token,
+            self.id,
             reset!(),
             bold!(true),
             fg!(Some(color)),
@@ -572,22 +726,20 @@ impl Event {
 
         colored!(stdout, "  Topics:\n")?;
         for topic in &self.topic {
-            let scval = xdr::ScVal::from_xdr_base64(topic, Limits::none())?;
             colored!(
                 stdout,
                 "            {}{:?}{}\n",
                 fg!(Some(Color::Green)),
-                scval,
+                topic,
                 reset!(),
             )?;
         }
 
-        let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::none())?;
         colored!(
             stdout,
             "  Value: {}{:?}{}\n",
             fg!(Some(Color::Green)),
-            scval,
+            self.value,
             reset!(),
         )?;
 
@@ -770,22 +922,22 @@ impl Client {
 
     ///
     /// # Errors
-    pub async fn get_account(&self, address: &str) -> Result<AccountEntry, Error> {
-        tracing::trace!("Getting address {}", address);
+    pub async fn get_account(&self, address: impl Into<AccountId>) -> Result<AccountEntry, Error> {
+        let account_id = address.into();
+        tracing::trace!("Getting address {}", account_id);
         let key = LedgerKey::Account(LedgerKeyAccount {
-            account_id: AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(
-                stellar_strkey::ed25519::PublicKey::from_string(address)?.0,
-            ))),
+            account_id: account_id.clone(),
         });
         let keys = Vec::from([key]);
         let response = self.get_ledger_entries(&keys).await?;
         let entries = response.entries.unwrap_or_default();
         if entries.is_empty() {
-            return Err(Error::NotFound("Account".to_string(), address.to_owned()));
+            return Err(Error::NotFound(
+                "Account".to_string(),
+                account_id.to_string(),
+            ));
         }
-        let ledger_entry = &entries[0];
-        let mut read = Limited::new(ledger_entry.xdr.as_bytes(), Limits::none());
-        if let LedgerEntryData::Account(entry) = LedgerEntryData::read_xdr_base64(&mut read)? {
+        if let LedgerEntryData::Account(entry) = from_xdr(&entries[0].xdr)? {
             tracing::trace!(account=?entry);
             Ok(entry)
         } else {
@@ -814,14 +966,9 @@ impl Client {
 
         if status == "ERROR" {
             let error = error_result_xdr
+                .as_deref()
                 .ok_or(Error::MissingError)
-                .and_then(|x| {
-                    TransactionResult::read_xdr_base64(&mut Limited::new(
-                        x.as_bytes(),
-                        Limits::none(),
-                    ))
-                    .map_err(|_| Error::InvalidResponse)
-                })
+                .and_then(|x| from_xdr::<TransactionResult>(x).map_err(|_| Error::InvalidResponse))
                 .map(|r| r.result);
             tracing::error!("TXN {hash} failed:\n {error:#?}");
             return Err(Error::TransactionSubmissionFailed(format!("{:#?}", error?)));
@@ -909,7 +1056,7 @@ impl Client {
         let mut sleep_time = Duration::from_secs(1);
         loop {
             let response = self.get_transaction(tx_id).await?;
-            match response.status.as_str() {
+            match response.transaction_info.status.as_str() {
                 "SUCCESS" => {
                     // TODO: the caller should probably be printing this
                     tracing::trace!("{response:#?}");
@@ -920,12 +1067,14 @@ impl Client {
                     // TODO: provide a more elaborate error
                     return Err(Error::TransactionSubmissionFailed(format!(
                         "{:#?}",
-                        response.result
+                        response.transaction_info.result
                     )));
                 }
                 "NOT_FOUND" => (),
                 _ => {
-                    return Err(Error::UnexpectedTransactionStatus(response.status));
+                    return Err(Error::UnexpectedTransactionStatus(
+                        response.transaction_info.status,
+                    ));
                 }
             };
             if start.elapsed() > timeout {
@@ -942,14 +1091,10 @@ impl Client {
         &self,
         keys: &[LedgerKey],
     ) -> Result<GetLedgerEntriesResponse, Error> {
-        let mut base64_keys: Vec<String> = vec![];
-        for k in keys {
-            let base64_result = k.to_xdr_base64(Limits::none());
-            if base64_result.is_err() {
-                return Err(Error::Xdr(XdrError::Invalid));
-            }
-            base64_keys.push(k.to_xdr_base64(Limits::none())?);
-        }
+        let base64_keys = keys
+            .iter()
+            .map(|k| k.to_xdr_base64(Limits::none()))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut oparams = ObjectParams::new();
         oparams.insert("keys", base64_keys)?;
         Ok(self.client().request("getLedgerEntries", oparams).await?)
@@ -983,8 +1128,8 @@ impl Client {
                      live_until_ledger_seq_ledger_seq,
                  }| {
                     Ok(FullLedgerEntry {
-                        key: LedgerKey::from_xdr_base64(key, Limits::none())?,
-                        val: LedgerEntryData::from_xdr_base64(xdr, Limits::none())?,
+                        key: from_xdr(key)?,
+                        val: from_xdr(xdr)?,
                         live_until_ledger_seq: live_until_ledger_seq_ledger_seq.unwrap_or_default(),
                         last_modified_ledger: *last_modified_ledger,
                     })
@@ -1034,8 +1179,8 @@ impl Client {
         };
         oparams.insert("filters", vec![filters])?;
         oparams.insert("pagination", pagination)?;
-
-        Ok(self.client().request("getEvents", oparams).await?)
+        let resp: GetEventsResponseRaw = self.client().request("getEvents", oparams).await?;
+        Ok(resp.try_into()?)
     }
 
     ///
@@ -1057,7 +1202,7 @@ impl Client {
             return Err(Error::NotFound("Contract".to_string(), contract_address));
         }
         let contract_ref_entry = &entries[0];
-        match LedgerEntryData::from_xdr_base64(&contract_ref_entry.xdr, Limits::none())? {
+        match from_xdr::<LedgerEntryData>(&contract_ref_entry.xdr)? {
             LedgerEntryData::ContractData(contract_data) => Ok(contract_data),
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
@@ -1094,7 +1239,7 @@ impl Client {
             ));
         }
         let contract_data_entry = &entries[0];
-        match LedgerEntryData::from_xdr_base64(&contract_data_entry.xdr, Limits::none())? {
+        match from_xdr::<LedgerEntryData>(&contract_data_entry.xdr)? {
             LedgerEntryData::ContractCode(xdr::ContractCodeEntry { code, .. }) => Ok(code.into()),
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
@@ -1113,6 +1258,16 @@ impl Client {
             xdr::ScVal::ContractInstance(instance) => Ok(instance),
             scval => Err(Error::UnexpectedContractInstance(scval)),
         }
+    }
+
+    /// Get Version Info
+    /// # Errors
+    /// - Could fail to get version info or have a network error
+    pub async fn get_version_info(&self) -> Result<GetVersionInfoResponse, Error> {
+        Ok(self
+            .client()
+            .request("getVersionInfo", ObjectParams::new())
+            .await?)
     }
 }
 
@@ -1199,26 +1354,25 @@ mod tests {
         panic!("Could not find repository root");
     }
 
-    #[test]
-    fn test_parse_get_transactions_response() {
+    fn read_fixture_file<T: jsonrpsee_core::DeserializeOwned>(filename: &str) -> T {
         let repo_root = get_repo_root();
-        let fixture_path = repo_root
-            .join("src")
-            .join("fixtures")
-            .join("transactions_response.json");
-        let response_content =
-            fs::read_to_string(fixture_path).expect("Failed to read transactions_response.json");
-
+        let fixture_path = repo_root.join("src").join("fixtures").join(filename);
+        let response_content: String =
+            fs::read_to_string(fixture_path).expect("Failed to read fixture file");
         // Parse the entire response
         let full_response: serde_json::Value = serde_json::from_str(&response_content)
-            .expect("Failed to parse JSON from transactions_response.json");
+            .unwrap_or_else(|_| panic!("Failed to parse JSON from {filename}"));
 
         // Extract the "result" field
         let result = full_response["result"].clone();
         // Parse the "result" content as GetTransactionsResponseRaw
-        let raw_response: GetTransactionsResponseRaw = serde_json::from_value(result)
-            .expect("Failed to parse 'result' into GetTransactionsResponseRaw");
+        serde_json::from_value(result).expect("Failed to parse 'result'")
+    }
 
+    #[test]
+    fn parse_get_transactions_response() {
+        let raw_response: GetTransactionsResponseRaw =
+            read_fixture_file("curr_transactions_response.json");
         // Convert GetTransactionsResponseRaw to GetTransactionsResponse
         let response: GetTransactionsResponse = raw_response
             .try_into()
@@ -1231,12 +1385,87 @@ mod tests {
 
         // Additional assertions for specific transaction attributes
         assert_eq!(response.transactions[0].status, "SUCCESS");
-        //assert_eq!(response.transactions[0].application_order, 1);
-        //assert_eq!(response.transactions[0].ledger, 554000);
+        assert_eq!(response.transactions[0].application_order, Some(1));
+        assert_eq!(response.transactions[0].ledger, Some(554_000));
+        assert_eq!(
+            response.transactions[0].ledger_close_time(),
+            Some(1_721_053_660)
+        );
     }
 
     #[test]
-    fn test_rpc_url_default_ports() {
+    fn parse_get_transaction_response() {
+        // Parse the "result" content as GetTransactionsResponseRaw
+        let raw_response: GetTransactionResponseRaw =
+            read_fixture_file("curr_transaction_response.json");
+        // Convert GetTransactionsResponseRaw to GetTransactionsResponse
+        let response: GetTransactionResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
+        assert_eq!(response.transaction_info.diagnostic_events_xdr.len(), 21);
+        assert_eq!(response.transaction_info.status, "SUCCESS");
+        assert_eq!(response.transaction_info.application_order, Some(251));
+        assert_eq!(
+            response.transaction_info.ledger_close_time(),
+            Some(1_728_063_066)
+        );
+        assert_eq!(response.latest_ledger, 53_794_558);
+        assert_eq!(response.oldest_ledger, 53_777_279);
+        assert_eq!(response.oldest_ledger_close_time, 1_727_963_878);
+        assert_eq!(response.latest_ledger_close_time, 1_728_063_258);
+        assert_eq!(response.transaction_info.ledger, Some(53_794_524));
+    }
+
+    #[test]
+    fn parse_new_get_transaction_response() {
+        // Parse the "result" content as GetTransactionsResponseRaw
+        let raw_response: GetTransactionResponseRaw =
+            read_fixture_file("new_transaction_response.json");
+        println!("{raw_response:#?}");
+        // Convert GetTransactionsResponseRaw to GetTransactionsResponse
+        let response: GetTransactionResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
+        assert_eq!(response.transaction_info.diagnostic_events_xdr.len(), 21);
+        assert_eq!(response.transaction_info.status, "SUCCESS");
+        assert_eq!(response.transaction_info.application_order, Some(1));
+        assert_eq!(
+            response.transaction_info.ledger_close_time(),
+            Some(1_728_668_111)
+        );
+        assert_eq!(response.latest_ledger, 525);
+        assert_eq!(response.oldest_ledger, 8);
+        assert_eq!(response.oldest_ledger_close_time, 1_728_667_648);
+        assert_eq!(response.latest_ledger_close_time, 1_728_668_165);
+        assert_eq!(response.transaction_info.ledger, Some(471));
+        assert!(!response.transaction_info.fee_bump);
+        assert!(response.transaction_info.transaction_hash.is_none());
+    }
+
+    #[test]
+    fn parse_curr_simulation_response() {
+        let raw_response: SimulateTransactionResponse =
+            read_fixture_file("curr_simulation_response.json");
+        assert_eq!(raw_response.min_resource_fee, 92487);
+        assert_eq!(raw_response.latest_ledger, 53_795_023);
+        assert_eq!(raw_response.results.len(), 1);
+        assert_eq!(raw_response.events().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn parse_new_get_events_response() {
+        let raw_response: GetEventsResponseRaw = read_fixture_file("new_event_response.json");
+        let response: GetEventsResponse = raw_response.try_into().unwrap();
+        assert_eq!(response.latest_ledger, 3266);
+        assert_eq!(
+            response.cursor.as_deref(),
+            Some("0000012859132096512-0000000017")
+        );
+        assert_eq!(response.events.len(), 100);
+    }
+
+    #[test]
+    fn rpc_url_default_ports() {
         // Default ports are added.
         let client = Client::new("http://example.com").unwrap();
         assert_eq!(client.base_url(), "http://example.com:80/");
@@ -1267,7 +1496,7 @@ mod tests {
     #[test]
     // Taken from [RPC server
     // tests](https://github.com/stellar/soroban-tools/blob/main/cmd/soroban-rpc/internal/methods/get_events_test.go#L21).
-    fn test_does_topic_match() {
+    fn topic_match() {
         struct TestCase<'a> {
             name: &'a str,
             filter: Vec<&'a str>,
