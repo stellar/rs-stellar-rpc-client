@@ -811,14 +811,7 @@ impl Client {
         let uri = Uri::from_parts(parts).map_err(Error::InvalidRpcUrlFromUriParts)?;
         let base_url = Arc::from(uri.to_string());
         tracing::trace!(?uri);
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Client-Name", unsafe {
-            "soroban-cli".parse().unwrap_unchecked()
-        });
-        let version = VERSION.unwrap_or("devel");
-        headers.insert("X-Client-Version", unsafe {
-            version.parse().unwrap_unchecked()
-        });
+        let headers = Self::default_http_headers();
         let http_client = Arc::new(
             HttpClientBuilder::default()
                 .set_headers(headers)
@@ -831,17 +824,48 @@ impl Client {
         })
     }
 
-    #[must_use]
-    pub fn base_url(&self) -> &str {
-        &self.base_url
-    }
-
     /// Create a new client with a timeout in seconds
     /// # Errors
     pub fn new_with_timeout(base_url: &str, timeout: u64) -> Result<Self, Error> {
         let mut client = Self::new(base_url)?;
         client.timeout_in_secs = timeout;
         Ok(client)
+    }
+
+    /// Create a new client with additional headers
+    /// # Errors
+    pub fn new_with_headers(base_url: &str, additional_headers: HeaderMap) -> Result<Self, Error> {
+        let mut client = Self::new(base_url)?;
+        let mut headers = Self::default_http_headers();
+
+        for (key, value) in additional_headers {
+            headers.insert(key.ok_or(Error::InvalidResponse)?, value);
+        }
+        let http_client = Arc::new(
+            HttpClientBuilder::default()
+                .set_headers(headers)
+                .build(base_url)?,
+        );
+
+        client.http_client = http_client;
+        Ok(client)
+    }
+
+    fn default_http_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Client-Name", unsafe {
+            "rs-stellar-rpc-client".parse().unwrap_unchecked()
+        });
+        let version = VERSION.unwrap_or("devel");
+        headers.insert("X-Client-Version", unsafe {
+            version.parse().unwrap_unchecked()
+        });
+        headers
+    }
+
+    #[must_use]
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 
     #[must_use]
