@@ -33,7 +33,6 @@ serde = "1.0.82"
 serde_with = "3.9.0"
 tokio = "1.28.1"
 sha2 = "0.10.7"
-tracing = "0.1.40"
 
 # networking
 jsonrpsee-http-client = "0.20.1"
