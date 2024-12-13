@@ -658,7 +658,6 @@ impl Client {
         }
         let uri = Uri::from_parts(parts).map_err(Error::InvalidRpcUrlFromUriParts)?;
         let base_url = Arc::from(uri.to_string());
-        tracing::trace!(?uri);
         let headers = Self::default_http_headers();
         let http_client = Arc::new(
             HttpClientBuilder::default()
@@ -725,7 +724,6 @@ impl Client {
     /// # Errors
     pub async fn friendbot_url(&self) -> Result<String, Error> {
         let network = self.get_network().await?;
-        tracing::trace!("{network:#?}");
         network.friendbot_url.ok_or_else(|| {
             Error::NotFound(
                 "Friendbot".to_string(),
@@ -751,7 +749,6 @@ impl Client {
     ///
     /// # Errors
     pub async fn get_network(&self) -> Result<GetNetworkResponse, Error> {
-        tracing::trace!("Getting network");
         Ok(self
             .client()
             .request("getNetwork", ObjectParams::new())
@@ -761,7 +758,6 @@ impl Client {
     ///
     /// # Errors
     pub async fn get_latest_ledger(&self) -> Result<GetLatestLedgerResponse, Error> {
-        tracing::trace!("Getting latest ledger");
         Ok(self
             .client()
             .request("getLatestLedger", ObjectParams::new())
@@ -771,7 +767,6 @@ impl Client {
     ///
     /// # Errors
     pub async fn get_account(&self, address: &str) -> Result<AccountEntry, Error> {
-        tracing::trace!("Getting address {}", address);
         let key = LedgerKey::Account(LedgerKeyAccount {
             account_id: AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(
                 stellar_strkey::ed25519::PublicKey::from_string(address)?.0,
@@ -786,7 +781,6 @@ impl Client {
         let ledger_entry = &entries[0];
         let mut read = Limited::new(ledger_entry.xdr.as_bytes(), Limits::none());
         if let LedgerEntryData::Account(entry) = LedgerEntryData::read_xdr_base64(&mut read)? {
-            tracing::trace!(account=?entry);
             Ok(entry)
         } else {
             Err(Error::InvalidResponse)
@@ -796,7 +790,6 @@ impl Client {
     /// Send a transaction to the network and get back the hash of the transaction.
     /// # Errors
     pub async fn send_transaction(&self, tx: &TransactionEnvelope) -> Result<Hash, Error> {
-        tracing::trace!("Sending:\n{tx:#?}");
         let mut oparams = ObjectParams::new();
         oparams.insert("transaction", tx.to_xdr_base64(Limits::none())?)?;
         let SendTransactionResponse {
@@ -822,9 +815,8 @@ impl Client {
                     ))
                     .map_err(|_| Error::InvalidResponse)
                 })
-                .map(|r| r.result);
-            tracing::error!("TXN {hash} failed:\n {error:#?}");
-            return Err(Error::TransactionSubmissionFailed(format!("{:#?}", error?)));
+                .map(|r| r.result)?;
+            return Err(Error::TransactionSubmissionFailed(format!("{error:#?}")));
         }
         Ok(Hash::from_str(&hash)?)
     }
@@ -845,7 +837,6 @@ impl Client {
         &self,
         tx: &TransactionEnvelope,
     ) -> Result<SimulateTransactionResponse, Error> {
-        tracing::trace!("Simulating:\n{tx:#?}");
         let base64_tx = tx.to_xdr_base64(Limits::none())?;
         let mut oparams = ObjectParams::new();
         oparams.insert("transaction", base64_tx)?;
@@ -853,7 +844,6 @@ impl Client {
             .client()
             .request("simulateTransaction", oparams)
             .await?;
-        tracing::trace!("Simulation response:\n {sim_res:#?}");
         Ok(sim_res)
     }
 
@@ -910,19 +900,15 @@ impl Client {
         loop {
             let response = self.get_transaction(tx_id).await?;
             match response.status.as_str() {
-                "SUCCESS" => {
-                    // TODO: the caller should probably be printing this
-                    tracing::trace!("{response:#?}");
-                    return Ok(response);
-                }
+                "SUCCESS" => return Ok(response),
+
                 "FAILED" => {
-                    tracing::error!("{response:#?}");
-                    // TODO: provide a more elaborate error
                     return Err(Error::TransactionSubmissionFailed(format!(
                         "{:#?}",
                         response.result
-                    )));
+                    )))
                 }
+
                 "NOT_FOUND" => (),
                 _ => {
                     return Err(Error::UnexpectedTransactionStatus(response.status));
@@ -966,12 +952,10 @@ impl Client {
             .filter(|key| !matches!(key, LedgerKey::Ttl(_)))
             .map(Clone::clone)
             .collect::<Vec<_>>();
-        tracing::trace!("keys: {keys:#?}");
         let GetLedgerEntriesResponse {
             entries,
             latest_ledger,
         } = self.get_ledger_entries(&keys).await?;
-        tracing::trace!("raw: {entries:#?}");
         let entries = entries
             .unwrap_or_default()
             .iter()
@@ -991,7 +975,6 @@ impl Client {
                 },
             )
             .collect::<Result<Vec<_>, Error>>()?;
-        tracing::trace!("parsed: {entries:#?}");
         Ok(FullLedgerEntries {
             entries,
             latest_ledger,
