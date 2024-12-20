@@ -674,6 +674,7 @@ impl Client {
 
     /// Create a new client with a timeout in seconds
     /// # Errors
+    #[deprecated(note = "To be marked private in a future major release. Please use `new_with_headers` instead.")]
     pub fn new_with_timeout(base_url: &str, timeout: u64) -> Result<Self, Error> {
         let mut client = Self::new(base_url)?;
         client.timeout_in_secs = timeout;
