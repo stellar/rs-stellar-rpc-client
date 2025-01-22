@@ -1098,7 +1098,6 @@ dependencies = [
  "termcolor_output",
  "thiserror",
  "tokio",
- "tracing",
 ]
 
 [[package]]
