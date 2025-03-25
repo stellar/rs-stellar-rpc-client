@@ -300,6 +300,17 @@ pub struct GetNetworkResponse {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetHealthResponse {
+    pub status: String,
+    #[serde(rename = "latestLedger")]
+    pub latest_ledger: u32,
+    #[serde(rename = "oldestLedger")]
+    pub oldest_ledger: u32,
+    #[serde(rename = "ledgerRetentionWindow")]
+    pub ledger_retention_window: u32,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetLatestLedgerResponse {
     pub id: String,
     #[serde(rename = "protocolVersion")]
@@ -755,6 +766,15 @@ impl Client {
         Ok(self
             .client()
             .request("getNetwork", ObjectParams::new())
+            .await?)
+    }
+
+    ///
+    /// # Errors
+    pub async fn get_health(&self) -> Result<GetHealthResponse, Error> {
+        Ok(self
+            .client()
+            .request("getHealth", ObjectParams::new())
             .await?)
     }
 
