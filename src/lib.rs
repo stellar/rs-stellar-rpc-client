@@ -619,7 +619,7 @@ pub enum EventStart {
     Cursor(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct FullLedgerEntry {
     pub key: LedgerKey,
     pub val: LedgerEntryData,
@@ -627,7 +627,7 @@ pub struct FullLedgerEntry {
     pub live_until_ledger_seq: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct FullLedgerEntries {
     pub entries: Vec<FullLedgerEntry>,
     pub latest_ledger: i64,
