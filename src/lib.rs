@@ -619,10 +619,9 @@ pub enum EventStart {
     Cursor(String),
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq)]
 pub struct FullLedgerEntry {
     pub key: LedgerKey,
-    // Should we rename it to XDR to match LedgerEntry output?
     pub val: LedgerEntryData,
     #[serde(rename = "lastModifiedLedgerSeq")]
     pub last_modified_ledger: u32,
