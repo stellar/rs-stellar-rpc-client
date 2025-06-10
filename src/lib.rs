@@ -311,6 +311,19 @@ pub struct GetHealthResponse {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetVersionInfoResponse {
+    pub version: String,
+    #[serde(rename = "commitHash")]
+    pub commmit_hash: String,
+    #[serde(rename = "buildTimestamp")]
+    pub build_timestamp: String,
+    #[serde(rename = "captiveCoreVersion")]
+    pub captive_core_version: String,
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: u32,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetLatestLedgerResponse {
     pub id: String,
     #[serde(rename = "protocolVersion")]
@@ -808,6 +821,15 @@ impl Client {
         } else {
             Err(Error::InvalidResponse)
         }
+    }
+
+    ///
+    /// # Errors
+    pub async fn get_version_info(&self) -> Result<GetVersionInfoResponse, Error> {
+        Ok(self
+            .client()
+            .request("getVersionInfo", ObjectParams::new())
+            .await?)
     }
 
     /// Send a transaction to the network and get back the hash of the transaction.
