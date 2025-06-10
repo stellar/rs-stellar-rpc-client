@@ -9,11 +9,11 @@ use serde_aux::prelude::{
 };
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
-    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
-    Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
-    Limited, Limits, PublicKey, ReadXdr, ScContractInstance, SorobanAuthorizationEntry,
-    SorobanResources, SorobanTransactionData, TransactionEnvelope, TransactionMeta,
-    TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
+    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, ContractId,
+    DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey,
+    LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
+    SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
+    TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
 };
 
 use std::{
@@ -308,6 +308,19 @@ pub struct GetHealthResponse {
     pub oldest_ledger: u32,
     #[serde(rename = "ledgerRetentionWindow")]
     pub ledger_retention_window: u32,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetVersionInfoResponse {
+    pub version: String,
+    #[serde(rename = "commitHash")]
+    pub commmit_hash: String,
+    #[serde(rename = "buildTimestamp")]
+    pub build_timestamp: String,
+    #[serde(rename = "captiveCoreVersion")]
+    pub captive_core_version: String,
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: u32,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -818,6 +831,15 @@ impl Client {
         }
     }
 
+    ///
+    /// # Errors
+    pub async fn get_version_info(&self) -> Result<GetVersionInfoResponse, Error> {
+        Ok(self
+            .client()
+            .request("getVersionInfo", ObjectParams::new())
+            .await?)
+    }
+
     /// Send a transaction to the network and get back the hash of the transaction.
     /// # Errors
     pub async fn send_transaction(&self, tx: &TransactionEnvelope) -> Result<Hash, Error> {
@@ -1060,7 +1082,7 @@ impl Client {
     ) -> Result<ContractDataEntry, Error> {
         // Get the contract from the network
         let contract_key = LedgerKey::ContractData(xdr::LedgerKeyContractData {
-            contract: xdr::ScAddress::Contract(xdr::Hash(*contract_id)),
+            contract: xdr::ScAddress::Contract(ContractId(xdr::Hash(*contract_id))),
             key: xdr::ScVal::LedgerKeyContractInstance,
             durability: xdr::ContractDataDurability::Persistent,
         });
