@@ -9,11 +9,11 @@ use serde_aux::prelude::{
 };
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
-    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
-    Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
-    Limited, Limits, PublicKey, ReadXdr, ScContractInstance, SorobanAuthorizationEntry,
-    SorobanResources, SorobanTransactionData, TransactionEnvelope, TransactionMeta,
-    TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
+    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, ContractId,
+    DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey,
+    LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
+    SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
+    TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
 };
 
 use std::{
@@ -1052,7 +1052,7 @@ impl Client {
     ) -> Result<ContractDataEntry, Error> {
         // Get the contract from the network
         let contract_key = LedgerKey::ContractData(xdr::LedgerKeyContractData {
-            contract: xdr::ScAddress::Contract(xdr::Hash(*contract_id)),
+            contract: xdr::ScAddress::Contract(ContractId(xdr::Hash(*contract_id))),
             key: xdr::ScVal::LedgerKeyContractInstance,
             durability: xdr::ContractDataDurability::Persistent,
         });
