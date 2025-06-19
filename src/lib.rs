@@ -559,6 +559,35 @@ pub struct GetEventsResponse {
     pub cursor: String,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetLedgersResponse {
+    #[serde(rename = "latestLedger")]
+    pub latest_ledger: u32,
+    #[serde(
+        rename = "latestLedgerCloseTime",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub latest_ledger_close_time: u32,
+    #[serde(rename = "oldestLedger")]
+    pub oldest_ledger: u32,
+    #[serde(rename = "oldestLedgerCloseTime")]
+    pub oldest_ledger_close_time: i64,
+    pub cursor: String,
+    pub ledgers: Vec<Ledger>
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct Ledger {
+    pub hash: String,
+    pub sequence: u32,
+    #[serde(rename = "ledgerCloseTime")]
+    pub ledger_close_time: String,
+    #[serde(rename = "headerXdr")]
+    pub header_xdr: String,
+    #[serde(rename = "metadataXdr")]
+    pub metadata_xdr: String,
+}
+
 // Determines whether or not a particular filter matches a topic based on the
 // same semantics as the RPC server:
 //
@@ -720,6 +749,12 @@ pub enum EventType {
     All,
     Contract,
     System,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum LedgerStart {
+    Ledger(u32),
+    Cursor(String),
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -905,12 +940,37 @@ impl Client {
 
     ///
     /// # Errors
+    pub async fn get_ledgers(&self, start: LedgerStart, limit: Option<usize>) -> Result<GetLedgersResponse, Error> {
+        let mut oparams = ObjectParams::new();
+
+        let mut pagination = serde_json::Map::new();
+        if let Some(limit) = limit {
+            pagination.insert("limit".to_string(), limit.into());
+        }
+
+        match start {
+            LedgerStart::Ledger(l) => oparams.insert("startLedger", l)?,
+            LedgerStart::Cursor(c) => {
+                pagination.insert("cursor".to_string(), c.into());
+            }
+        };
+
+        oparams.insert("pagination", pagination)?;
+
+        Ok(self
+            .client()
+            .request("getLedgers", oparams)
+            .await?)
+    }
+
+    ///
+    /// # Errors
     pub async fn get_account(&self, address: &str) -> Result<AccountEntry, Error> {
         let key = LedgerKey::Account(LedgerKeyAccount {
             account_id: AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(
                 stellar_strkey::ed25519::PublicKey::from_string(address)?.0,
             ))),
-        });
+        }); 
         let keys = Vec::from([key]);
         let response = self.get_ledger_entries(&keys).await?;
         let entries = response.entries.unwrap_or_default();
