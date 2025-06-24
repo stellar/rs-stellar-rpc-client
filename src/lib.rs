@@ -573,7 +573,7 @@ pub struct GetLedgersResponse {
     #[serde(rename = "oldestLedgerCloseTime")]
     pub oldest_ledger_close_time: i64,
     pub cursor: String,
-    pub ledgers: Vec<Ledger>
+    pub ledgers: Vec<Ledger>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -940,7 +940,11 @@ impl Client {
 
     ///
     /// # Errors
-    pub async fn get_ledgers(&self, start: LedgerStart, limit: Option<usize>) -> Result<GetLedgersResponse, Error> {
+    pub async fn get_ledgers(
+        &self,
+        start: LedgerStart,
+        limit: Option<usize>,
+    ) -> Result<GetLedgersResponse, Error> {
         let mut oparams = ObjectParams::new();
 
         let mut pagination = serde_json::Map::new();
@@ -957,10 +961,7 @@ impl Client {
 
         oparams.insert("pagination", pagination)?;
 
-        Ok(self
-            .client()
-            .request("getLedgers", oparams)
-            .await?)
+        Ok(self.client().request("getLedgers", oparams).await?)
     }
 
     ///
@@ -970,7 +971,7 @@ impl Client {
             account_id: AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(
                 stellar_strkey::ed25519::PublicKey::from_string(address)?.0,
             ))),
-        }); 
+        });
         let keys = Vec::from([key]);
         let response = self.get_ledger_entries(&keys).await?;
         let entries = response.entries.unwrap_or_default();
