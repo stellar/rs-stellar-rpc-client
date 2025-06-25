@@ -10,12 +10,13 @@ use serde_aux::prelude::{
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractId,
-    DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey,
-    LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
+    DiagnosticEvent, Error as XdrError, Hash, LedgerCloseMeta, LedgerEntryData, LedgerFootprint, LedgerKey,
+    LedgerHeaderHistoryEntry, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
     SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
-    TransactionEvent, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
+    TransactionEvent, TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
 };
 
+use std::fmt;
 use std::{
     f64::consts::E,
     fmt::Display,
@@ -584,8 +585,12 @@ pub struct Ledger {
     pub ledger_close_time: String,
     #[serde(rename = "headerXdr")]
     pub header_xdr: String,
+    #[serde(rename = "headerJson")]
+    pub header_json: Option<LedgerHeaderHistoryEntry>,
     #[serde(rename = "metadataXdr")]
     pub metadata_xdr: String,
+    #[serde(rename = "metadataJson")]
+    pub metadata_json: Option<LedgerCloseMeta>
 }
 
 // Determines whether or not a particular filter matches a topic based on the
@@ -944,6 +949,7 @@ impl Client {
         &self,
         start: LedgerStart,
         limit: Option<usize>,
+        format: Option<String>,
     ) -> Result<GetLedgersResponse, Error> {
         let mut oparams = ObjectParams::new();
 
@@ -960,6 +966,10 @@ impl Client {
         };
 
         oparams.insert("pagination", pagination)?;
+
+        if let Some(f) = format {
+            oparams.insert("xdrFormat", f)?;
+        }
 
         Ok(self.client().request("getLedgers", oparams).await?)
     }
