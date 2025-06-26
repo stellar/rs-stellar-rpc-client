@@ -318,6 +318,61 @@ pub struct GetLatestLedgerResponse {
     pub sequence: u32,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetFeeStatsResponse {
+    #[serde(rename = "sorobanInclusionFee")]
+    pub soroban_inclusion_fee: FeeStat,
+    #[serde(rename = "inclusionFee")]
+    pub inclusion_fee: FeeStat,
+    #[serde(
+        rename = "latestLedger",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub latest_ledger: u32,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct FeeStat {
+    pub max: String,
+    pub min: String,
+    // Fee value which occurs the most often
+    pub mode: String,
+    // 10th nearest-rank fee percentile
+    pub p10: String,
+    // 20th nearest-rank fee percentile
+    pub p20: String,
+    // 30th nearest-rank fee percentile
+    pub p30: String,
+    // 40th nearest-rank fee percentile
+    pub p40: String,
+    // 50th nearest-rank fee percentile
+    pub p50: String,
+    // 60th nearest-rank fee percentile
+    pub p60: String,
+    // 70th nearest-rank fee percentile
+    pub p70: String,
+    // 80th nearest-rank fee percentile
+    pub p80: String,
+    // 90th nearest-rank fee percentile.
+    pub p90: String,
+    // 95th nearest-rank fee percentile.
+    pub p95: String,
+    // 99th nearest-rank fee percentile
+    pub p99: String,
+    // How many transactions are part of the distribution
+    #[serde(
+        rename = "transactionCount",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub transaction_count: u32,
+    // How many consecutive ledgers form the distribution
+    #[serde(
+        rename = "ledgerCount",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub ledger_count: u32,
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct Cost {
     #[serde(
@@ -808,6 +863,15 @@ impl Client {
         } else {
             Err(Error::InvalidResponse)
         }
+    }
+
+    /// Get network fee stats
+    /// # Errors
+    pub async fn get_fee_stats(&self) -> Result<GetFeeStatsResponse, Error> {
+        Ok(self
+            .client()
+            .request("getFeeStats", ObjectParams::new())
+            .await?)
     }
 
     /// Send a transaction to the network and get back the hash of the transaction.
