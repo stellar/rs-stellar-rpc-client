@@ -6,9 +6,9 @@ repository = "https://github.com/stellar/soroban-rpc"
 authors = ["Stellar Development Foundation <info@stellar.org>"]
 license = "Apache-2.0"
 readme = "README.md"
-version = "22.1.0"
+version = "23.0.0-rc.2"
 edition = "2021"
-rust-version = "1.74.0"
+rust-version = "1.85.0"
 autobins = false
 
 
@@ -18,7 +18,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 stellar-strkey = "0.0.9"
-stellar-xdr = { version = "=22.1.0", features = ["curr", "std", "serde", "base64"] }
+stellar-xdr = { version = "=23.0.0-rc.1", features = ["curr", "std", "serde", "base64"] }
 
 
 termcolor = "1.1.3"
