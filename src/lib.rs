@@ -887,7 +887,6 @@ impl Client {
             .await?)
     }
 
-  
     ///
     /// # Errors
     pub async fn get_version_info(&self) -> Result<GetVersionInfoResponse, Error> {
