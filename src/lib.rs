@@ -173,8 +173,12 @@ impl GetTransactionResponse {
     ///
     /// # Errors
     pub fn return_value(&self) -> Result<xdr::ScVal, Error> {
-        if let Some(xdr::TransactionMeta::V3(xdr::TransactionMetaV3 {
-            soroban_meta: Some(xdr::SorobanTransactionMeta { return_value, .. }),
+        if let Some(xdr::TransactionMeta::V4(xdr::TransactionMetaV4 {
+            soroban_meta:
+                Some(xdr::SorobanTransactionMetaV2 {
+                    return_value: Some(return_value),
+                    ..
+                }),
             ..
         })) = &self.result_meta
         {
