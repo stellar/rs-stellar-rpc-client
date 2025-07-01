@@ -535,7 +535,12 @@ pub struct Event {
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Event [{}]:", self.event_type.to_ascii_uppercase())?;
+        writeln!(
+            f,
+            "Event {} [{}]:",
+            self.id,
+            self.event_type.to_ascii_uppercase()
+        )?;
         writeln!(
             f,
             "  Ledger:   {} (closed at {})",
@@ -575,9 +580,12 @@ impl Event {
         };
         colored!(
             stdout,
-            "{}Event{} [{}{}{}{}]:\n",
+            "{}Event{} {}{}{} [{}{}{}{}]:\n",
             bold!(true),
             bold!(false),
+            fg!(Some(Color::Green)),
+            self.id,
+            reset!(),
             bold!(true),
             fg!(Some(color)),
             self.event_type.to_ascii_uppercase(),
