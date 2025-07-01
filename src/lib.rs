@@ -565,6 +565,7 @@ impl Event {
     pub fn parse_cursor(&self) -> Result<(u64, i32), Error> {
         parse_cursor(&self.id)
     }
+
     ///
     /// # Errors
     pub fn pretty_print(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -626,7 +627,7 @@ impl Event {
         let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::none())?;
         colored!(
             stdout,
-            "  Value: {}{:?}{}\n",
+            "  Value: {}{:?}{}\n\n",
             fg!(Some(Color::Green)),
             scval,
             reset!(),
