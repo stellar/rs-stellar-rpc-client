@@ -483,6 +483,13 @@ pub struct GetEventsResponse {
     pub events: Vec<Event>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
+    #[serde(rename = "latestLedgerCloseTime")]
+    pub latest_ledger_close_time: String,
+    #[serde(rename = "oldestLedger")]
+    pub oldest_ledger: u32,
+    #[serde(rename = "oldestLedgerCloseTime")]
+    pub oldest_ledger_close_time: String,
+    pub cursor: String,
 }
 
 // Determines whether or not a particular filter matches a topic based on the
@@ -519,8 +526,6 @@ pub struct Event {
     pub ledger_closed_at: String,
 
     pub id: String,
-    #[serde(rename = "pagingToken")]
-    pub paging_token: String,
 
     #[serde(rename = "contractId")]
     pub contract_id: String,
@@ -530,12 +535,7 @@ pub struct Event {
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "Event {} [{}]:",
-            self.paging_token,
-            self.event_type.to_ascii_uppercase()
-        )?;
+        writeln!(f, "Event [{}]:", self.event_type.to_ascii_uppercase())?;
         writeln!(
             f,
             "  Ledger:   {} (closed at {})",
@@ -575,12 +575,9 @@ impl Event {
         };
         colored!(
             stdout,
-            "{}Event{} {}{}{} [{}{}{}{}]:\n",
+            "{}Event{} [{}{}{}{}]:\n",
             bold!(true),
             bold!(false),
-            fg!(Some(Color::Green)),
-            self.paging_token,
-            reset!(),
             bold!(true),
             fg!(Some(color)),
             self.event_type.to_ascii_uppercase(),
