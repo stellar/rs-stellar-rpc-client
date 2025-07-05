@@ -237,7 +237,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
 impl GetTransactionResponse {
     ///
     /// # Errors
-    pub fn return_value(&self) -> Result<xdr::ScVal, Box<dyn std::error::Error>> {
+    pub fn return_value(&self) -> Result<xdr::ScVal, Error> {
         if let Some(xdr::TransactionMeta::V3(xdr::TransactionMetaV3 {
             soroban_meta: Some(xdr::SorobanTransactionMeta { return_value, .. }),
             ..
@@ -258,21 +258,21 @@ impl GetTransactionResponse {
             return Ok(return_value.clone());
         }
 
-        Err(Box::new(Error::MissingOp))
+        Err(Error::MissingOp)
     }
 
     ///
     /// # Errors
-    pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Box<dyn std::error::Error>> {
+    pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
         self.result_meta
             .as_ref()
             .map(extract_events)
-            .ok_or(Box::new(Error::MissingOp))
+            .ok_or(Error::MissingOp)
     }
 
     ///
     /// # Errors
-    pub fn contract_events(&self) -> Result<Vec<DiagnosticEvent>, Box<dyn std::error::Error>> {
+    pub fn contract_events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
         Ok(self
             .events()?
             .into_iter()
@@ -491,7 +491,7 @@ pub struct SimulateTransactionResponse {
 impl SimulateTransactionResponse {
     ///
     /// # Errors
-    pub fn results(&self) -> Result<Vec<SimulateHostFunctionResult>, Box<dyn std::error::Error>> {
+    pub fn results(&self) -> Result<Vec<SimulateHostFunctionResult>, Error> {
         self.results
             .iter()
             .map(|r| {
@@ -514,7 +514,7 @@ impl SimulateTransactionResponse {
 
     ///
     /// # Errors
-    pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Box<dyn std::error::Error>> {
+    pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
         self.events
             .iter()
             .map(|e| Ok(DiagnosticEvent::from_xdr_base64(e, Limits::none())?))
@@ -523,7 +523,7 @@ impl SimulateTransactionResponse {
 
     ///
     /// # Errors
-    pub fn transaction_data(&self) -> Result<SorobanTransactionData, Box<dyn std::error::Error>> {
+    pub fn transaction_data(&self) -> Result<SorobanTransactionData, Error> {
         Ok(SorobanTransactionData::from_xdr_base64(
             &self.transaction_data,
             Limits::none(),
@@ -630,7 +630,7 @@ impl Display for Event {
 impl Event {
     ///
     /// # Errors
-    pub fn parse_cursor(&self) -> Result<(u64, i32), Box<dyn std::error::Error>> {
+    pub fn parse_cursor(&self) -> Result<(u64, i32), Error> {
         parse_cursor(&self.id)
     }
 
@@ -744,7 +744,7 @@ pub struct Client {
 impl Client {
     ///
     /// # Errors
-    pub fn new(base_url: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(base_url: &str) -> Result<Self, Error> {
         // Add the port to the base URL if there is no port explicitly included
         // in the URL and the scheme allows us to infer a default port.
         // Jsonrpsee requires a port to always be present even if one can be
@@ -790,10 +790,7 @@ impl Client {
     #[deprecated(
         note = "To be marked private in a future major release. Please use `new_with_headers` instead."
     )]
-    pub fn new_with_timeout(
-        base_url: &str,
-        timeout: u64,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new_with_timeout(base_url: &str, timeout: u64) -> Result<Self, Error> {
         let mut client = Self::new(base_url)?;
         client.timeout_in_secs = timeout;
         Ok(client)
@@ -801,10 +798,7 @@ impl Client {
 
     /// Create a new client with additional headers
     /// # Errors
-    pub fn new_with_headers(
-        base_url: &str,
-        additional_headers: HeaderMap,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new_with_headers(base_url: &str, additional_headers: HeaderMap) -> Result<Self, Error> {
         let mut client = Self::new(base_url)?;
         let mut headers = Self::default_http_headers();
 
@@ -1285,7 +1279,7 @@ fn extract_events(tx_meta: &TransactionMeta) -> Vec<DiagnosticEvent> {
     }
 }
 
-pub(crate) fn parse_cursor(c: &str) -> Result<(u64, i32), Box<dyn std::error::Error>> {
+pub(crate) fn parse_cursor(c: &str) -> Result<(u64, i32), Error> {
     let (toid_part, event_index) = c.split('-').collect_tuple().ok_or(Error::InvalidCursor)?;
     let toid_part: u64 = toid_part.parse().map_err(|_| Error::InvalidCursor)?;
     let start_index: i32 = event_index.parse().map_err(|_| Error::InvalidCursor)?;
@@ -1313,7 +1307,7 @@ mod tests {
     fn read_json_file(name: &str) -> String {
         let repo_root = get_repo_root();
         let fixture_path = repo_root.join("src").join("fixtures").join(name);
-        fs::read_to_string(fixture_path).unwrap_or_else(|_| panic!("Failed to read {name:?}"))
+        fs::read_to_string(fixture_path).expect(&format!("Failed to read {name:?}"))
     }
 
     #[test]
