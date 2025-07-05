@@ -212,7 +212,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .into_iter()
                     .map(|es| {
                         es.into_iter()
-                            .map(|e| ContractEvent::from_xdr_base64(e, Limits::none()).unwrap())
+                            .filter_map(|e| ContractEvent::from_xdr_base64(e, Limits::none()).ok())
                             .collect()
                     })
                     .collect(),
@@ -220,13 +220,13 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .diagnostic_events_xdr
                     .unwrap_or_default()
                     .iter()
-                    .map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).unwrap())
+                    .filter_map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).ok())
                     .collect(),
                 transaction_events: events
                     .transaction_events_xdr
                     .unwrap_or_default()
                     .iter()
-                    .map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).unwrap())
+                    .filter_map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).ok())
                     .collect(),
             }),
         })
