@@ -13,7 +13,8 @@ use stellar_xdr::curr::{
     ContractId, DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint,
     LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
     SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
-    TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
+    TransactionEvent, TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM,
+    WriteXdr,
 };
 
 use std::{
@@ -173,7 +174,7 @@ pub struct GetTransactionEventsRaw {
 pub struct GetTransactionEvents {
     pub contract_events: Vec<Vec<ContractEvent>>,
     pub diagnostic_events: Vec<DiagnosticEvent>,
-    pub transaction_events: Vec<DiagnosticEvent>,
+    pub transaction_events: Vec<TransactionEvent>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -226,7 +227,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .transaction_events_xdr
                     .unwrap_or_default()
                     .iter()
-                    .filter_map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).ok())
+                    .filter_map(|e| TransactionEvent::from_xdr_base64(e, Limits::none()).ok())
                     .collect(),
             },
         })
