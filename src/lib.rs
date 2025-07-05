@@ -9,9 +9,9 @@ use serde_aux::prelude::{
 };
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
-    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, ContractId,
-    DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey,
-    LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
+    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractEventType,
+    ContractId, DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint,
+    LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
     SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
     TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
 };
@@ -120,23 +120,60 @@ pub struct SendTransactionResponse {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+// TODO: add ledger info and application order
 pub struct GetTransactionResponseRaw {
     pub status: String,
+
     #[serde(
         rename = "envelopeXdr",
         skip_serializing_if = "Option::is_none",
         default
     )]
     pub envelope_xdr: Option<String>,
+
     #[serde(rename = "resultXdr", skip_serializing_if = "Option::is_none", default)]
     pub result_xdr: Option<String>,
+
     #[serde(
         rename = "resultMetaXdr",
         skip_serializing_if = "Option::is_none",
         default
     )]
     pub result_meta_xdr: Option<String>,
-    // TODO: add ledger info and application order
+
+    #[serde(rename = "events", skip_serializing_if = "Option::is_none", default)]
+    pub events: Option<GetTransactionEventsRaw>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
+pub struct GetTransactionEventsRaw {
+    #[serde(
+        rename = "contractEventsXdr",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub contract_events_xdr: Option<Vec<Vec<String>>>,
+
+    #[serde(
+        rename = "diagnosticEventsXdr",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub diagnostic_events_xdr: Option<Vec<String>>,
+
+    #[serde(
+        rename = "transactionEventsXdr",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub transaction_events_xdr: Option<Vec<String>>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct GetTransactionEvents {
+    pub contract_events: Vec<Vec<ContractEvent>>,
+    pub diagnostic_events: Vec<DiagnosticEvent>,
+    pub transaction_events: Vec<DiagnosticEvent>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -145,12 +182,15 @@ pub struct GetTransactionResponse {
     pub envelope: Option<xdr::TransactionEnvelope>,
     pub result: Option<xdr::TransactionResult>,
     pub result_meta: Option<xdr::TransactionMeta>,
+    pub events: Option<GetTransactionEvents>,
 }
 
 impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
     type Error = xdr::Error;
 
     fn try_into(self) -> Result<GetTransactionResponse, Self::Error> {
+        let events = self.events.unwrap_or_default();
+
         Ok(GetTransactionResponse {
             status: self.status,
             envelope: self
@@ -165,6 +205,30 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                 .result_meta_xdr
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
                 .transpose()?,
+            events: Some(GetTransactionEvents {
+                contract_events: events
+                    .contract_events_xdr
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|es| {
+                        es.into_iter()
+                            .map(|e| ContractEvent::from_xdr_base64(e, Limits::none()).unwrap())
+                            .collect()
+                    })
+                    .collect(),
+                diagnostic_events: events
+                    .diagnostic_events_xdr
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).unwrap())
+                    .collect(),
+                transaction_events: events
+                    .transaction_events_xdr
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).unwrap())
+                    .collect(),
+            }),
         })
     }
 }
@@ -548,13 +612,16 @@ impl Display for Event {
         )?;
         writeln!(f, "  Contract: {}", self.contract_id)?;
         writeln!(f, "  Topics:")?;
+
         for topic in &self.topic {
             let scval =
                 xdr::ScVal::from_xdr_base64(topic, Limits::none()).map_err(|_| std::fmt::Error)?;
             writeln!(f, "            {scval:?}")?;
         }
+
         let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::none())
             .map_err(|_| std::fmt::Error)?;
+
         writeln!(f, "  Value:    {scval:?}")
     }
 }
@@ -570,6 +637,7 @@ impl Event {
     /// # Errors
     pub fn pretty_print(&self) -> Result<(), Box<dyn std::error::Error>> {
         let mut stdout = StandardStream::stdout(ColorChoice::Auto);
+
         if !stdout.supports_color() {
             println!("{self}");
             return Ok(());
@@ -682,6 +750,7 @@ impl Client {
         // inferred. This may change: https://github.com/paritytech/jsonrpsee/issues/1048.
         let uri = base_url.parse::<Uri>().map_err(Error::InvalidRpcUrl)?;
         let mut parts = uri.into_parts();
+
         if let (Some(scheme), Some(authority)) = (&parts.scheme, &parts.authority) {
             if authority.port().is_none() {
                 let port = match scheme.as_str() {
@@ -698,6 +767,7 @@ impl Client {
                 }
             }
         }
+
         let uri = Uri::from_parts(parts).map_err(Error::InvalidRpcUrlFromUriParts)?;
         let base_url = Arc::from(uri.to_string());
         let headers = Self::default_http_headers();
@@ -706,6 +776,7 @@ impl Client {
                 .set_headers(headers)
                 .build(&base_url)?,
         );
+
         Ok(Self {
             base_url,
             timeout_in_secs: 30,
@@ -733,6 +804,7 @@ impl Client {
         for (key, value) in additional_headers {
             headers.insert(key.ok_or(Error::InvalidResponse)?, value);
         }
+
         let http_client = Arc::new(
             HttpClientBuilder::default()
                 .set_headers(headers)
@@ -752,6 +824,7 @@ impl Client {
         headers.insert("X-Client-Version", unsafe {
             version.parse().unwrap_unchecked()
         });
+
         headers
     }
 
@@ -780,6 +853,7 @@ impl Client {
     /// # Errors
     pub async fn verify_network_passphrase(&self, expected: Option<&str>) -> Result<String, Error> {
         let server = self.get_network().await?.passphrase;
+
         if let Some(expected) = expected {
             if expected != server {
                 return Err(Error::InvalidNetworkPassphrase {
@@ -788,6 +862,7 @@ impl Client {
                 });
             }
         }
+
         Ok(server)
     }
 
@@ -829,11 +904,14 @@ impl Client {
         let keys = Vec::from([key]);
         let response = self.get_ledger_entries(&keys).await?;
         let entries = response.entries.unwrap_or_default();
+
         if entries.is_empty() {
             return Err(Error::NotFound("Account".to_string(), address.to_owned()));
         }
+
         let ledger_entry = &entries[0];
         let mut read = Limited::new(ledger_entry.xdr.as_bytes(), Limits::none());
+
         if let LedgerEntryData::Account(entry) = LedgerEntryData::read_xdr_base64(&mut read)? {
             Ok(entry)
         } else {
@@ -879,8 +957,10 @@ impl Client {
                     .map_err(|_| Error::InvalidResponse)
                 })
                 .map(|r| r.result)?;
+
             return Err(Error::TransactionSubmissionFailed(format!("{error:#?}")));
         }
+
         Ok(Hash::from_str(&hash)?)
     }
 
@@ -907,6 +987,7 @@ impl Client {
             .client()
             .request("simulateTransaction", oparams)
             .await?;
+
         Ok(sim_res)
     }
 
@@ -917,6 +998,7 @@ impl Client {
         oparams.insert("hash", tx_id)?;
         let resp: GetTransactionResponseRaw =
             self.client().request("getTransaction", oparams).await?;
+
         Ok(resp.try_into()?)
     }
 
@@ -927,15 +1009,19 @@ impl Client {
         request: GetTransactionsRequest,
     ) -> Result<GetTransactionsResponse, Error> {
         let mut oparams = ObjectParams::new();
+
         if let Some(start_ledger) = request.start_ledger {
             oparams.insert("startLedger", start_ledger)?;
         }
+
         if let Some(pagination_params) = request.pagination {
             let pagination = serde_json::json!(pagination_params);
             oparams.insert("pagination", pagination)?;
         }
+
         let resp: GetTransactionsResponseRaw =
             self.client().request("getTransactions", oparams).await?;
+
         Ok(resp.try_into()?)
     }
 
@@ -976,10 +1062,12 @@ impl Client {
                 _ => {
                     return Err(Error::UnexpectedTransactionStatus(response.status));
                 }
-            };
+            }
+
             if start.elapsed() > timeout {
                 return Err(Error::TransactionSubmissionTimeout);
             }
+
             sleep(sleep_time).await;
             sleep_time = Duration::from_secs_f64(sleep_time.as_secs_f64() * exponential_backoff);
         }
@@ -992,6 +1080,7 @@ impl Client {
         keys: &[LedgerKey],
     ) -> Result<GetLedgerEntriesResponse, Error> {
         let mut base64_keys: Vec<String> = vec![];
+
         for k in keys {
             let base64_result = k.to_xdr_base64(Limits::none());
             if base64_result.is_err() {
@@ -999,8 +1088,10 @@ impl Client {
             }
             base64_keys.push(k.to_xdr_base64(Limits::none())?);
         }
+
         let mut oparams = ObjectParams::new();
         oparams.insert("keys", base64_keys)?;
+
         Ok(self.client().request("getLedgerEntries", oparams).await?)
     }
 
@@ -1077,7 +1168,7 @@ impl Client {
             EventStart::Cursor(c) => {
                 pagination.insert("cursor".to_string(), c.into());
             }
-        };
+        }
         oparams.insert("filters", vec![filters])?;
         oparams.insert("pagination", pagination)?;
 
@@ -1201,6 +1292,23 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
+    fn get_repo_root() -> PathBuf {
+        let mut path = env::current_exe().expect("Failed to get current executable path");
+        // Navigate up the directory tree until we find the repository root
+        while path.pop() {
+            if path.join("Cargo.toml").exists() {
+                return path;
+            }
+        }
+        panic!("Could not find repository root");
+    }
+
+    fn read_json_file(name: &str) -> String {
+        let repo_root = get_repo_root();
+        let fixture_path = repo_root.join("src").join("fixtures").join(name);
+        fs::read_to_string(fixture_path).expect(&format!("Failed to read {name:?}"))
+    }
+
     #[test]
     fn simulation_transaction_response_parsing() {
         let s = r#"{
@@ -1234,26 +1342,55 @@ mod tests {
         assert_eq!(resp.latest_ledger, 1_234);
     }
 
-    fn get_repo_root() -> PathBuf {
-        let mut path = env::current_exe().expect("Failed to get current executable path");
-        // Navigate up the directory tree until we find the repository root
-        while path.pop() {
-            if path.join("Cargo.toml").exists() {
-                return path;
-            }
-        }
-        panic!("Could not find repository root");
+    #[test]
+    fn test_parse_transaction_response_p23() {
+        let response_content = read_json_file("transaction_response_p23.json");
+        let full_response: serde_json::Value = serde_json::from_str(&response_content)
+            .expect("Failed to parse JSON from transaction_response_p23.json");
+        let result = full_response["result"].clone();
+        let raw_response: GetTransactionResponseRaw = serde_json::from_value(result)
+            .expect("Failed to parse 'result' into GetTransactionResponseRaw");
+        let response: GetTransactionResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
+
+        let events = response.events.expect("Events should be defined");
+
+        assert_eq!(2, events.transaction_events.iter().len());
+        assert_eq!(
+            1,
+            events
+                .contract_events
+                .first()
+                .expect("contract events must not be empty")
+                .iter()
+                .len()
+        );
+        assert_eq!(21, events.diagnostic_events.iter().len());
+    }
+
+    #[test]
+    fn test_parse_transaction_response_p22() {
+        let response_content = read_json_file("transaction_response_p22.json");
+        let full_response: serde_json::Value = serde_json::from_str(&response_content)
+            .expect("Failed to parse JSON from transaction_response_p22.json");
+        let result = full_response["result"].clone();
+        let raw_response: GetTransactionResponseRaw = serde_json::from_value(result)
+            .expect("Failed to parse 'result' into GetTransactionResponseRaw");
+        let response: GetTransactionResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
+
+        let events = response.events.expect("Events should be defined");
+
+        assert!(events.transaction_events.is_empty());
+        assert!(events.contract_events.is_empty());
+        assert!(events.diagnostic_events.is_empty());
     }
 
     #[test]
     fn test_parse_get_transactions_response() {
-        let repo_root = get_repo_root();
-        let fixture_path = repo_root
-            .join("src")
-            .join("fixtures")
-            .join("transactions_response.json");
-        let response_content =
-            fs::read_to_string(fixture_path).expect("Failed to read transactions_response.json");
+        let response_content = read_json_file("transactions_response.json");
 
         // Parse the entire response
         let full_response: serde_json::Value = serde_json::from_str(&response_content)
