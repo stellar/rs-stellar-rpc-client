@@ -182,7 +182,7 @@ pub struct GetTransactionResponse {
     pub envelope: Option<xdr::TransactionEnvelope>,
     pub result: Option<xdr::TransactionResult>,
     pub result_meta: Option<xdr::TransactionMeta>,
-    pub events: Option<GetTransactionEvents>,
+    pub events: GetTransactionEvents,
 }
 
 impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
@@ -205,7 +205,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                 .result_meta_xdr
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
                 .transpose()?,
-            events: Some(GetTransactionEvents {
+            events: GetTransactionEvents {
                 contract_events: events
                     .contract_events_xdr
                     .unwrap_or_default()
@@ -228,7 +228,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .iter()
                     .filter_map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).ok())
                     .collect(),
-            }),
+            },
         })
     }
 }
@@ -1360,19 +1360,18 @@ mod tests {
             .try_into()
             .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
 
-        let events = response.events.expect("Events should be defined");
-
-        assert_eq!(2, events.transaction_events.iter().len());
+        assert_eq!(2, response.events.transaction_events.iter().len());
         assert_eq!(
             1,
-            events
+            response
+                .events
                 .contract_events
                 .first()
                 .expect("contract events must not be empty")
                 .iter()
                 .len()
         );
-        assert_eq!(21, events.diagnostic_events.iter().len());
+        assert_eq!(21, response.events.diagnostic_events.iter().len());
     }
 
     #[test]
@@ -1387,11 +1386,9 @@ mod tests {
             .try_into()
             .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
 
-        let events = response.events.expect("Events should be defined");
-
-        assert!(events.transaction_events.is_empty());
-        assert!(events.contract_events.is_empty());
-        assert!(events.diagnostic_events.is_empty());
+        assert!(response.events.transaction_events.is_empty());
+        assert!(response.events.contract_events.is_empty());
+        assert!(response.events.diagnostic_events.is_empty());
     }
 
     #[test]
