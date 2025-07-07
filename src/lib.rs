@@ -281,25 +281,6 @@ impl GetTransactionResponse {
 
         Err(Error::MissingOp)
     }
-
-    //
-    // # Errors
-    // pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
-    //     self.result_meta
-    //         .as_ref()
-    //         .map(extract_events)
-    //         .ok_or(Error::MissingOp)
-    // }
-
-    //
-    // # Errors
-    // pub fn contract_events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
-    //     Ok(self
-    //         .events()?
-    //         .into_iter()
-    //         .filter(|e| matches!(e.event.type_, ContractEventType::Contract))
-    //         .collect::<Vec<_>>())
-    // }
 }
 
 #[serde_as]
@@ -1274,31 +1255,6 @@ impl Client {
         }
     }
 }
-
-// fn extract_events(tx_meta: &TransactionMeta) -> Vec<DiagnosticEvent> {
-//     match tx_meta {
-//         TransactionMeta::V3(TransactionMetaV3 {
-//             soroban_meta: Some(meta),
-//             ..
-//         }) => {
-//             // NOTE: we assume there can only be one operation, since we only send one
-//             if meta.diagnostic_events.len() == 1 {
-//                 meta.diagnostic_events.clone().into()
-//             } else if meta.events.len() == 1 {
-//                 meta.events
-//                     .iter()
-//                     .map(|e| DiagnosticEvent {
-//                         in_successful_contract_call: true,
-//                         event: e.clone(),
-//                     })
-//                     .collect()
-//             } else {
-//                 Vec::new()
-//             }
-//         }
-//         _ => Vec::new(),
-//     }
-// }
 
 pub(crate) fn parse_cursor(c: &str) -> Result<(u64, i32), Error> {
     let (toid_part, event_index) = c.split('-').collect_tuple().ok_or(Error::InvalidCursor)?;
