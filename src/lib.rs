@@ -9,12 +9,11 @@ use serde_aux::prelude::{
 };
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
-    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractEventType,
-    ContractId, DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint,
-    LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
+    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractId,
+    DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey,
+    LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
     SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
-    TransactionEvent, TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM,
-    WriteXdr,
+    TransactionEvent, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
 };
 
 use std::{
@@ -172,7 +171,7 @@ pub struct GetTransactionEventsRaw {
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct GetTransactionEvents {
-    pub contract_events: Vec<Vec<ContractEvent>>,
+    pub contract_events: Vec<ContractEvent>,
     pub diagnostic_events: Vec<DiagnosticEvent>,
     pub transaction_events: Vec<TransactionEvent>,
 }
@@ -191,6 +190,54 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
 
     fn try_into(self) -> Result<GetTransactionResponse, Self::Error> {
         let events = self.events.unwrap_or_default();
+        let result_meta: Option<xdr::TransactionMeta> = self
+            .result_meta_xdr
+            .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
+            .transpose()?;
+
+        let events = match result_meta {
+            Some(xdr::TransactionMeta::V4(_)) => GetTransactionEvents {
+                contract_events: events
+                    .contract_events_xdr
+                    .unwrap_or_default()
+                    .into_iter()
+                    .flat_map(|es| {
+                        es.into_iter()
+                            .filter_map(|e| ContractEvent::from_xdr_base64(e, Limits::none()).ok())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<ContractEvent>>(),
+
+                diagnostic_events: events
+                    .diagnostic_events_xdr
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).ok())
+                    .collect(),
+
+                transaction_events: events
+                    .transaction_events_xdr
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|e| TransactionEvent::from_xdr_base64(e, Limits::none()).ok())
+                    .collect(),
+            },
+
+            Some(xdr::TransactionMeta::V3(TransactionMetaV3 {
+                soroban_meta: Some(ref meta),
+                ..
+            })) => GetTransactionEvents {
+                contract_events: vec![],
+                transaction_events: vec![],
+                diagnostic_events: meta.diagnostic_events.clone().into(),
+            },
+
+            _ => GetTransactionEvents {
+                contract_events: vec![],
+                transaction_events: vec![],
+                diagnostic_events: vec![],
+            },
+        };
 
         Ok(GetTransactionResponse {
             status: self.status,
@@ -202,34 +249,8 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                 .result_xdr
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
                 .transpose()?,
-            result_meta: self
-                .result_meta_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
-                .transpose()?,
-            events: GetTransactionEvents {
-                contract_events: events
-                    .contract_events_xdr
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|es| {
-                        es.into_iter()
-                            .filter_map(|e| ContractEvent::from_xdr_base64(e, Limits::none()).ok())
-                            .collect()
-                    })
-                    .collect(),
-                diagnostic_events: events
-                    .diagnostic_events_xdr
-                    .unwrap_or_default()
-                    .iter()
-                    .filter_map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).ok())
-                    .collect(),
-                transaction_events: events
-                    .transaction_events_xdr
-                    .unwrap_or_default()
-                    .iter()
-                    .filter_map(|e| TransactionEvent::from_xdr_base64(e, Limits::none()).ok())
-                    .collect(),
-            },
+            result_meta: result_meta,
+            events: events,
         })
     }
 }
@@ -261,24 +282,24 @@ impl GetTransactionResponse {
         Err(Error::MissingOp)
     }
 
-    ///
-    /// # Errors
-    pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
-        self.result_meta
-            .as_ref()
-            .map(extract_events)
-            .ok_or(Error::MissingOp)
-    }
+    //
+    // # Errors
+    // pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
+    //     self.result_meta
+    //         .as_ref()
+    //         .map(extract_events)
+    //         .ok_or(Error::MissingOp)
+    // }
 
-    ///
-    /// # Errors
-    pub fn contract_events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
-        Ok(self
-            .events()?
-            .into_iter()
-            .filter(|e| matches!(e.event.type_, ContractEventType::Contract))
-            .collect::<Vec<_>>())
-    }
+    //
+    // # Errors
+    // pub fn contract_events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
+    //     Ok(self
+    //         .events()?
+    //         .into_iter()
+    //         .filter(|e| matches!(e.event.type_, ContractEventType::Contract))
+    //         .collect::<Vec<_>>())
+    // }
 }
 
 #[serde_as]
@@ -1254,30 +1275,30 @@ impl Client {
     }
 }
 
-fn extract_events(tx_meta: &TransactionMeta) -> Vec<DiagnosticEvent> {
-    match tx_meta {
-        TransactionMeta::V3(TransactionMetaV3 {
-            soroban_meta: Some(meta),
-            ..
-        }) => {
-            // NOTE: we assume there can only be one operation, since we only send one
-            if meta.diagnostic_events.len() == 1 {
-                meta.diagnostic_events.clone().into()
-            } else if meta.events.len() == 1 {
-                meta.events
-                    .iter()
-                    .map(|e| DiagnosticEvent {
-                        in_successful_contract_call: true,
-                        event: e.clone(),
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            }
-        }
-        _ => Vec::new(),
-    }
-}
+// fn extract_events(tx_meta: &TransactionMeta) -> Vec<DiagnosticEvent> {
+//     match tx_meta {
+//         TransactionMeta::V3(TransactionMetaV3 {
+//             soroban_meta: Some(meta),
+//             ..
+//         }) => {
+//             // NOTE: we assume there can only be one operation, since we only send one
+//             if meta.diagnostic_events.len() == 1 {
+//                 meta.diagnostic_events.clone().into()
+//             } else if meta.events.len() == 1 {
+//                 meta.events
+//                     .iter()
+//                     .map(|e| DiagnosticEvent {
+//                         in_successful_contract_call: true,
+//                         event: e.clone(),
+//                     })
+//                     .collect()
+//             } else {
+//                 Vec::new()
+//             }
+//         }
+//         _ => Vec::new(),
+//     }
+// }
 
 pub(crate) fn parse_cursor(c: &str) -> Result<(u64, i32), Error> {
     let (toid_part, event_index) = c.split('-').collect_tuple().ok_or(Error::InvalidCursor)?;
@@ -1356,16 +1377,7 @@ mod tests {
             .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
 
         assert_eq!(2, response.events.transaction_events.iter().len());
-        assert_eq!(
-            1,
-            response
-                .events
-                .contract_events
-                .first()
-                .expect("contract events must not be empty")
-                .iter()
-                .len()
-        );
+        assert_eq!(1, response.events.contract_events.len());
         assert_eq!(21, response.events.diagnostic_events.iter().len());
     }
 
@@ -1381,9 +1393,7 @@ mod tests {
             .try_into()
             .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
 
-        assert!(response.events.transaction_events.is_empty());
-        assert!(response.events.contract_events.is_empty());
-        assert!(response.events.diagnostic_events.is_empty());
+        assert_eq!(23, response.events.diagnostic_events.iter().len());
     }
 
     #[test]
