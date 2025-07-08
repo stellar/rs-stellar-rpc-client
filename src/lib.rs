@@ -1006,6 +1006,7 @@ impl Client {
             Some(AuthMode::RecordAllowNonRoot) => {
                 params.insert("authMode", "record_allow_nonroot")?;
             }
+            None => {}
         }
 
         let sim_res = self.client().request("simulateTransaction", params).await?;
