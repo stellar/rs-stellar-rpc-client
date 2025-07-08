@@ -708,6 +708,13 @@ impl Event {
     }
 }
 
+/// Defines non-root authorization for simulated transactions.
+pub enum AuthMode {
+    Enforce,
+    Record,
+    RecordAllowNonRoot,
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, clap::ValueEnum)]
 pub enum EventType {
     All,
@@ -982,14 +989,26 @@ impl Client {
     pub async fn simulate_transaction_envelope(
         &self,
         tx: &TransactionEnvelope,
+        auth_mode: Option<AuthMode>,
     ) -> Result<SimulateTransactionResponse, Error> {
         let base64_tx = tx.to_xdr_base64(Limits::none())?;
-        let mut oparams = ObjectParams::new();
-        oparams.insert("transaction", base64_tx)?;
-        let sim_res = self
-            .client()
-            .request("simulateTransaction", oparams)
-            .await?;
+        let mut params = ObjectParams::new();
+
+        params.insert("transaction", base64_tx)?;
+
+        match auth_mode {
+            Some(AuthMode::Enforce) => {
+                params.insert("authMode", "enforce")?;
+            }
+            Some(AuthMode::Record) => {
+                params.insert("authMode", "record")?;
+            }
+            Some(AuthMode::RecordAllowNonRoot) => {
+                params.insert("authMode", "record_allow_nonroot")?;
+            }
+        }
+
+        let sim_res = self.client().request("simulateTransaction", params).await?;
 
         Ok(sim_res)
     }
