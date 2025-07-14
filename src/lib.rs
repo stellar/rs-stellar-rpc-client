@@ -10,10 +10,11 @@ use serde_aux::prelude::{
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractId,
-    DiagnosticEvent, Error as XdrError, Hash, LedgerCloseMeta, LedgerEntryData, LedgerFootprint, LedgerKey,
-    LedgerHeaderHistoryEntry, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
-    SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
-    TransactionEvent, TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
+    DiagnosticEvent, Error as XdrError, Hash, LedgerCloseMeta, LedgerEntryData, LedgerFootprint,
+    LedgerHeaderHistoryEntry, LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr,
+    ScContractInstance, SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData,
+    TransactionEnvelope, TransactionEvent, TransactionMeta, TransactionMetaV3, TransactionResult,
+    Uint256, VecM, WriteXdr,
 };
 
 use std::fmt;
@@ -568,7 +569,7 @@ pub struct GetLedgersResponse {
         rename = "latestLedgerCloseTime",
         deserialize_with = "deserialize_number_from_string"
     )]
-    pub latest_ledger_close_time: u32,
+    pub latest_ledger_close_time: i64,
     #[serde(rename = "oldestLedger")]
     pub oldest_ledger: u32,
     #[serde(rename = "oldestLedgerCloseTime")]
@@ -590,7 +591,7 @@ pub struct Ledger {
     #[serde(rename = "metadataXdr")]
     pub metadata_xdr: String,
     #[serde(rename = "metadataJson")]
-    pub metadata_json: Option<LedgerCloseMeta>
+    pub metadata_json: Option<LedgerCloseMeta>,
 }
 
 // Determines whether or not a particular filter matches a topic based on the
