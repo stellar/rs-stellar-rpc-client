@@ -13,11 +13,10 @@ use stellar_xdr::curr::{
     DiagnosticEvent, Error as XdrError, Hash, LedgerCloseMeta, LedgerEntryData, LedgerFootprint,
     LedgerHeaderHistoryEntry, LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr,
     ScContractInstance, SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData,
-    TransactionEnvelope, TransactionEvent, TransactionMeta, TransactionMetaV3, TransactionResult,
-    Uint256, VecM, WriteXdr,
+    TransactionEnvelope, TransactionEvent, TransactionMetaV3, TransactionResult, Uint256, VecM,
+    WriteXdr,
 };
 
-use std::fmt;
 use std::{
     f64::consts::E,
     fmt::Display,
