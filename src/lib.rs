@@ -171,7 +171,7 @@ pub struct GetTransactionEventsRaw {
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct GetTransactionEvents {
-    pub contract_events: Vec<ContractEvent>,
+    pub contract_events: Vec<Vec<ContractEvent>>,
     pub diagnostic_events: Vec<DiagnosticEvent>,
     pub transaction_events: Vec<TransactionEvent>,
 }
@@ -201,12 +201,12 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .contract_events_xdr
                     .unwrap_or_default()
                     .into_iter()
-                    .flat_map(|es| {
+                    .map(|es| {
                         es.into_iter()
                             .filter_map(|e| ContractEvent::from_xdr_base64(e, Limits::none()).ok())
                             .collect::<Vec<_>>()
                     })
-                    .collect::<Vec<ContractEvent>>(),
+                    .collect::<Vec<Vec<ContractEvent>>>(),
 
                 diagnostic_events: events
                     .diagnostic_events_xdr
