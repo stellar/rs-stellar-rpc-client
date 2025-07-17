@@ -10,10 +10,11 @@ use serde_aux::prelude::{
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractId,
-    DiagnosticEvent, Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey,
-    LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr, ScContractInstance,
-    SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, TransactionEnvelope,
-    TransactionEvent, TransactionMetaV3, TransactionResult, Uint256, VecM, WriteXdr,
+    DiagnosticEvent, Error as XdrError, Hash, LedgerCloseMeta, LedgerEntryData, LedgerFootprint,
+    LedgerHeaderHistoryEntry, LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr,
+    ScContractInstance, SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData,
+    TransactionEnvelope, TransactionEvent, TransactionMetaV3, TransactionResult, Uint256, VecM,
+    WriteXdr,
 };
 
 use std::{
@@ -410,6 +411,61 @@ pub struct GetLatestLedgerResponse {
     pub sequence: u32,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetFeeStatsResponse {
+    #[serde(rename = "sorobanInclusionFee")]
+    pub soroban_inclusion_fee: FeeStat,
+    #[serde(rename = "inclusionFee")]
+    pub inclusion_fee: FeeStat,
+    #[serde(
+        rename = "latestLedger",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub latest_ledger: u32,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct FeeStat {
+    pub max: String,
+    pub min: String,
+    // Fee value which occurs the most often
+    pub mode: String,
+    // 10th nearest-rank fee percentile
+    pub p10: String,
+    // 20th nearest-rank fee percentile
+    pub p20: String,
+    // 30th nearest-rank fee percentile
+    pub p30: String,
+    // 40th nearest-rank fee percentile
+    pub p40: String,
+    // 50th nearest-rank fee percentile
+    pub p50: String,
+    // 60th nearest-rank fee percentile
+    pub p60: String,
+    // 70th nearest-rank fee percentile
+    pub p70: String,
+    // 80th nearest-rank fee percentile
+    pub p80: String,
+    // 90th nearest-rank fee percentile.
+    pub p90: String,
+    // 95th nearest-rank fee percentile.
+    pub p95: String,
+    // 99th nearest-rank fee percentile
+    pub p99: String,
+    // How many transactions are part of the distribution
+    #[serde(
+        rename = "transactionCount",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub transaction_count: u32,
+    // How many consecutive ledgers form the distribution
+    #[serde(
+        rename = "ledgerCount",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub ledger_count: u32,
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct Cost {
     #[serde(
@@ -557,6 +613,39 @@ pub struct GetEventsResponse {
     #[serde(rename = "oldestLedgerCloseTime")]
     pub oldest_ledger_close_time: String,
     pub cursor: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetLedgersResponse {
+    #[serde(rename = "latestLedger")]
+    pub latest_ledger: u32,
+    #[serde(
+        rename = "latestLedgerCloseTime",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub latest_ledger_close_time: i64,
+    #[serde(rename = "oldestLedger")]
+    pub oldest_ledger: u32,
+    #[serde(rename = "oldestLedgerCloseTime")]
+    pub oldest_ledger_close_time: i64,
+    pub cursor: String,
+    pub ledgers: Vec<Ledger>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct Ledger {
+    pub hash: String,
+    pub sequence: u32,
+    #[serde(rename = "ledgerCloseTime")]
+    pub ledger_close_time: String,
+    #[serde(rename = "headerXdr")]
+    pub header_xdr: String,
+    #[serde(rename = "headerJson")]
+    pub header_json: Option<LedgerHeaderHistoryEntry>,
+    #[serde(rename = "metadataXdr")]
+    pub metadata_xdr: String,
+    #[serde(rename = "metadataJson")]
+    pub metadata_json: Option<LedgerCloseMeta>,
 }
 
 // Determines whether or not a particular filter matches a topic based on the
@@ -720,6 +809,12 @@ pub enum EventType {
     All,
     Contract,
     System,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum LedgerStart {
+    Ledger(u32),
+    Cursor(String),
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -913,6 +1008,37 @@ impl Client {
 
     ///
     /// # Errors
+    pub async fn get_ledgers(
+        &self,
+        start: LedgerStart,
+        limit: Option<usize>,
+        format: Option<String>,
+    ) -> Result<GetLedgersResponse, Error> {
+        let mut oparams = ObjectParams::new();
+
+        let mut pagination = serde_json::Map::new();
+        if let Some(limit) = limit {
+            pagination.insert("limit".to_string(), limit.into());
+        }
+
+        match start {
+            LedgerStart::Ledger(l) => oparams.insert("startLedger", l)?,
+            LedgerStart::Cursor(c) => {
+                pagination.insert("cursor".to_string(), c.into());
+            }
+        };
+
+        oparams.insert("pagination", pagination)?;
+
+        if let Some(f) = format {
+            oparams.insert("xdrFormat", f)?;
+        }
+
+        Ok(self.client().request("getLedgers", oparams).await?)
+    }
+
+    ///
+    /// # Errors
     pub async fn get_account(&self, address: &str) -> Result<AccountEntry, Error> {
         let key = LedgerKey::Account(LedgerKeyAccount {
             account_id: AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(
@@ -935,6 +1061,15 @@ impl Client {
         } else {
             Err(Error::InvalidResponse)
         }
+    }
+
+    /// Get network fee stats
+    /// # Errors
+    pub async fn get_fee_stats(&self) -> Result<GetFeeStatsResponse, Error> {
+        Ok(self
+            .client()
+            .request("getFeeStats", ObjectParams::new())
+            .await?)
     }
 
     ///
