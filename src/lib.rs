@@ -494,18 +494,11 @@ pub struct SimulateHostFunctionResult {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq)]
-#[serde(tag = "type")]
-pub enum LedgerEntryChange {
-    #[serde(rename = "created")]
-    Created { key: String, after: String },
-    #[serde(rename = "deleted")]
-    Deleted { key: String, before: String },
-    #[serde(rename = "updated")]
-    Updated {
-        key: String,
-        before: String,
-        after: String,
-    },
+pub struct LedgerEntryChange {
+    r#type: Option<String>,
+    key: Option<String>,
+    before: Option<String>,
+    after: Option<String>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
