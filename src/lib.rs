@@ -1453,7 +1453,12 @@ mod tests {
         let resp: SimulateTransactionResponse = serde_json::from_str(s).unwrap();
         assert_eq!(
             resp.state_changes.unwrap()[0],
-            LedgerEntryChange::Created { key: "AAAAAAAAAABuaCbVXZ2DlXWarV6UxwbW3GNJgpn3ASChIFp5bxSIWg==".to_string(), after: "AAAAZAAAAAAAAAAAbmgm1V2dg5V1mq1elMcG1txjSYKZ9wEgoSBaeW8UiFoAAAAAAAAAZAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_string() },
+            LedgerEntryChange {
+                r#type: Some("created".to_string()),
+                key: Some("AAAAAAAAAABuaCbVXZ2DlXWarV6UxwbW3GNJgpn3ASChIFp5bxSIWg==".to_string()),
+                before: None,
+                after: Some("AAAAZAAAAAAAAAAAbmgm1V2dg5V1mq1elMcG1txjSYKZ9wEgoSBaeW8UiFoAAAAAAAAAZAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_string()) 
+            }
         );
         assert_eq!(resp.min_resource_fee, 100_000_000);
     }
