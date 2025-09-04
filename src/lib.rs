@@ -816,17 +816,25 @@ pub enum EventStart {
     Cursor(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq)]
 pub struct FullLedgerEntry {
     pub key: LedgerKey,
     pub val: LedgerEntryData,
+    #[serde(rename = "lastModifiedLedgerSeq")]
     pub last_modified_ledger: u32,
-    pub live_until_ledger_seq: u32,
+    #[serde(
+        rename = "liveUntilLedgerSeq",
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_option_number_from_string",
+        default
+    )]
+    pub live_until_ledger_seq: Option<u32>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct FullLedgerEntries {
     pub entries: Vec<FullLedgerEntry>,
+    #[serde(rename = "latestLedger")]
     pub latest_ledger: i64,
 }
 
@@ -1274,7 +1282,7 @@ impl Client {
                     Ok(FullLedgerEntry {
                         key: LedgerKey::from_xdr_base64(key, Limits::none())?,
                         val: LedgerEntryData::from_xdr_base64(xdr, Limits::none())?,
-                        live_until_ledger_seq: live_until_ledger_seq_ledger_seq.unwrap_or_default(),
+                        live_until_ledger_seq: *live_until_ledger_seq_ledger_seq,
                         last_modified_ledger: *last_modified_ledger,
                     })
                 },
