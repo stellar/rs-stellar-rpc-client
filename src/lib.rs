@@ -125,6 +125,9 @@ pub struct SendTransactionResponse {
 pub struct GetTransactionResponseRaw {
     pub status: String,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ledger: Option<u32>,
+
     #[serde(
         rename = "envelopeXdr",
         skip_serializing_if = "Option::is_none",
@@ -180,6 +183,7 @@ pub struct GetTransactionEvents {
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionResponse {
     pub status: String,
+    pub ledger: Option<u32>,
     pub envelope: Option<xdr::TransactionEnvelope>,
     pub result: Option<xdr::TransactionResult>,
     pub result_meta: Option<xdr::TransactionMeta>,
@@ -242,6 +246,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
 
         Ok(GetTransactionResponse {
             status: self.status,
+            ledger: self.ledger,
             envelope: self
                 .envelope_xdr
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
