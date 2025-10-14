@@ -864,7 +864,7 @@ pub struct Client {
 pub struct ResourceConfig {
     /// Allow this many extra instructions when budgeting resources.
     #[serde(rename = "instructionLeeway")]
-    instruction_leeway: u64,
+    pub instruction_leeway: u64,
 }
 
 #[allow(deprecated)] // Can be removed once Client doesn't have any code marked deprecated inside
