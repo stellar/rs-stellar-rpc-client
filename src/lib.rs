@@ -255,8 +255,8 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                 .result_xdr
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
                 .transpose()?,
-            result_meta: result_meta,
-            events: events,
+            result_meta,
+            events,
         })
     }
 }
@@ -304,6 +304,7 @@ pub struct GetTransactionsResponseRaw {
     #[serde_as(as = "DisplayFromStr")]
     pub cursor: u64,
 }
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionsResponse {
     pub transactions: Vec<GetTransactionResponse>,
@@ -313,6 +314,7 @@ pub struct GetTransactionsResponse {
     pub oldest_ledger_close_time: i64,
     pub cursor: u64,
 }
+
 impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
     type Error = xdr::Error; // assuming xdr::Error or any other error type that you use
 
@@ -857,6 +859,14 @@ pub struct Client {
     http_client: Arc<HttpClient>,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+/// Contains configuration for how resources will be calculated when simulating transactions.
+pub struct ResourceConfig {
+    /// Allow this many extra instructions when budgeting resources.
+    #[serde(rename = "instructionLeeway")]
+    pub instruction_leeway: u64,
+}
+
 #[allow(deprecated)] // Can be removed once Client doesn't have any code marked deprecated inside
 impl Client {
     ///
@@ -1031,7 +1041,7 @@ impl Client {
             LedgerStart::Cursor(c) => {
                 pagination.insert("cursor".to_string(), c.into());
             }
-        };
+        }
 
         oparams.insert("pagination", pagination)?;
 
@@ -1138,6 +1148,7 @@ impl Client {
         &self,
         tx: &TransactionEnvelope,
         auth_mode: Option<AuthMode>,
+        resource_config: Option<ResourceConfig>,
     ) -> Result<SimulateTransactionResponse, Error> {
         let base64_tx = tx.to_xdr_base64(Limits::none())?;
         let mut params = ObjectParams::new();
@@ -1155,6 +1166,12 @@ impl Client {
                 params.insert("authMode", "record_allow_nonroot")?;
             }
             None => {}
+        }
+
+        if let Some(ref config) = resource_config {
+            let mut resource_config_params = ObjectParams::new();
+            resource_config_params.insert("instructionLeeway", config.instruction_leeway)?;
+            params.insert("resourceConfig", resource_config)?;
         }
 
         let sim_res = self.client().request("simulateTransaction", params).await?;
