@@ -1148,6 +1148,36 @@ impl Client {
         &self,
         tx: &TransactionEnvelope,
         auth_mode: Option<AuthMode>,
+    ) -> Result<SimulateTransactionResponse, Error> {
+        let base64_tx = tx.to_xdr_base64(Limits::none())?;
+        let mut params = ObjectParams::new();
+
+        params.insert("transaction", base64_tx)?;
+
+        match auth_mode {
+            Some(AuthMode::Enforce) => {
+                params.insert("authMode", "enforce")?;
+            }
+            Some(AuthMode::Record) => {
+                params.insert("authMode", "record")?;
+            }
+            Some(AuthMode::RecordAllowNonRoot) => {
+                params.insert("authMode", "record_allow_nonroot")?;
+            }
+            None => {}
+        }
+
+        let sim_res = self.client().request("simulateTransaction", params).await?;
+
+        Ok(sim_res)
+    }
+
+    /// Internal function, not to be used.
+    /// # Errors
+    pub async fn next_simulate_transaction_envelope(
+        &self,
+        tx: &TransactionEnvelope,
+        auth_mode: Option<AuthMode>,
         resource_config: Option<ResourceConfig>,
     ) -> Result<SimulateTransactionResponse, Error> {
         let base64_tx = tx.to_xdr_base64(Limits::none())?;
