@@ -14,7 +14,7 @@ use stellar_xdr::curr::{
     LedgerHeaderHistoryEntry, LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr,
     ScContractInstance, SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData,
     TransactionEnvelope, TransactionEvent, TransactionMetaV3, TransactionResult, Uint256, VecM,
-    WriteXdr,
+    WriteXdr
 };
 
 use std::{
@@ -725,6 +725,10 @@ impl Display for Event {
     }
 }
 
+pub type SegmentFilter = String;
+pub type TopicFilter = Vec<SegmentFilter>;
+pub type TopicFilters = Vec<TopicFilter>;
+
 impl Event {
     ///
     /// # Errors
@@ -1352,6 +1356,7 @@ impl Client {
             latest_ledger,
         })
     }
+
     ///
     /// # Errors
     pub async fn get_events(
@@ -1359,7 +1364,7 @@ impl Client {
         start: EventStart,
         event_type: Option<EventType>,
         contract_ids: &[String],
-        topics: &[String],
+        topics: &[TopicFilter],
         limit: Option<usize>,
     ) -> Result<GetEventsResponse, Error> {
         let mut filters = serde_json::Map::new();
@@ -1372,7 +1377,7 @@ impl Client {
             })
             .map(|t| filters.insert("type".to_string(), t.into()));
 
-        filters.insert("topics".to_string(), topics.into());
+        filters.insert("topics".to_string(),topics.into());
         filters.insert("contractIds".to_string(), contract_ids.into());
 
         let mut pagination = serde_json::Map::new();
