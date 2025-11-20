@@ -727,7 +727,6 @@ impl Display for Event {
 
 pub type SegmentFilter = String;
 pub type TopicFilter = Vec<SegmentFilter>;
-pub type TopicFilters = Vec<TopicFilter>;
 
 impl Event {
     ///
