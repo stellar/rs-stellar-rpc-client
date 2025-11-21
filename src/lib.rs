@@ -725,6 +725,9 @@ impl Display for Event {
     }
 }
 
+pub type SegmentFilter = String;
+pub type TopicFilter = Vec<SegmentFilter>;
+
 impl Event {
     ///
     /// # Errors
@@ -1352,6 +1355,7 @@ impl Client {
             latest_ledger,
         })
     }
+
     ///
     /// # Errors
     pub async fn get_events(
@@ -1359,7 +1363,7 @@ impl Client {
         start: EventStart,
         event_type: Option<EventType>,
         contract_ids: &[String],
-        topics: &[String],
+        topics: &[TopicFilter],
         limit: Option<usize>,
     ) -> Result<GetEventsResponse, Error> {
         let mut filters = serde_json::Map::new();
