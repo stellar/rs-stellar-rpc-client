@@ -840,6 +840,7 @@ pub enum LedgerStart {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum EventStart {
     Ledger(u32),
+    LedgerRange { start: u32, end: u32 },
     Cursor(String),
 }
 
@@ -1397,6 +1398,10 @@ impl Client {
         let mut oparams = ObjectParams::new();
         match start {
             EventStart::Ledger(l) => oparams.insert("startLedger", l)?,
+            EventStart::LedgerRange { start, end } => {
+                oparams.insert("startLedger", start)?;
+                oparams.insert("endLedger", end)?;
+            }
             EventStart::Cursor(c) => {
                 pagination.insert("cursor".to_string(), c.into());
             }
@@ -1652,11 +1657,13 @@ mod tests {
             .expect("Failed to parse 'result' into GetEventsResponse");
 
         // Re-serialize
-        let reserialized = serde_json::to_value(&resp)
-            .expect("Failed to serialize response");
+        let reserialized = serde_json::to_value(&resp).expect("Failed to serialize response");
 
         // Compare
-        assert_eq!(result, reserialized, "Deserialization should preserve all data");
+        assert_eq!(
+            result, reserialized,
+            "Deserialization should preserve all data"
+        );
     }
 
     #[test]
