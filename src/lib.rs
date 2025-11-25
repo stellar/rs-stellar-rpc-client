@@ -687,11 +687,21 @@ pub struct Event {
     pub ledger: u32,
     #[serde(rename = "ledgerClosedAt")]
     pub ledger_closed_at: String,
+    #[serde(rename = "contractId")]
+    pub contract_id: String,
 
     pub id: String,
 
-    #[serde(rename = "contractId")]
-    pub contract_id: String,
+    #[serde(rename = "operationIndex")]
+    pub operation_index: u32,
+    #[serde(rename = "transactionIndex")]
+    pub transaction_index: u32,
+    #[serde(rename = "txHash")]
+    pub tx_hash: String,
+    #[deprecated(note = "This field is deprecated by Stellar RPC")]
+    #[serde(rename = "inSuccessfulContractCall")]
+    pub is_successful_contract_call: bool,
+
     pub topic: Vec<String>,
     pub value: String,
 }
@@ -830,6 +840,7 @@ pub enum LedgerStart {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum EventStart {
     Ledger(u32),
+    LedgerRange { start: u32, end: u32 },
     Cursor(String),
 }
 
@@ -1387,6 +1398,10 @@ impl Client {
         let mut oparams = ObjectParams::new();
         match start {
             EventStart::Ledger(l) => oparams.insert("startLedger", l)?,
+            EventStart::LedgerRange { start, end } => {
+                oparams.insert("startLedger", start)?;
+                oparams.insert("endLedger", end)?;
+            }
             EventStart::Cursor(c) => {
                 pagination.insert("cursor".to_string(), c.into());
             }
@@ -1628,6 +1643,27 @@ mod tests {
         assert_eq!(client.base_url(), "http://example.com:80/a/b:80/c/");
         let client = Client::new("https://example.com/a/b:80/c/").unwrap();
         assert_eq!(client.base_url(), "https://example.com:443/a/b:80/c/");
+    }
+
+    #[test]
+    fn test_parse_events_response() {
+        let response_content = read_json_file("events_response_p23.json");
+        let full_response: serde_json::Value = serde_json::from_str(&response_content)
+            .expect("Failed to parse JSON from events_response_p23.json");
+        let result = full_response["result"].clone();
+
+        // Deserialize
+        let resp: GetEventsResponse = serde_json::from_value(result.clone())
+            .expect("Failed to parse 'result' into GetEventsResponse");
+
+        // Re-serialize
+        let reserialized = serde_json::to_value(&resp).expect("Failed to serialize response");
+
+        // Compare
+        assert_eq!(
+            result, reserialized,
+            "Deserialization should preserve all data"
+        );
     }
 
     #[test]
