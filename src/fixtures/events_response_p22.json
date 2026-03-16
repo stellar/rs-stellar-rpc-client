@@ -1,0 +1,245 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "events": [
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000000",
+        "pagingToken": "0000001529008361472-0000000000",
+        "inSuccessfulContractCall": true,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAdmbl9jYWxsAA==",
+          "AAAADQAAACD1oRnKKzVZpObXgOeDtwFiWofskAQ2hCYA9eW/Rk2NlQ==",
+          "AAAADwAAAAlpbmNyZW1lbnQAAAA="
+        ],
+        "value": "AAAAAQ=="
+      },
+      {
+        "type": "contract",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "CD22CGOKFM2VTJHG26AOPA5XAFRFVB7MSACDNBBGAD26LP2GJWGZKFHM",
+        "id": "0000001529008361472-0000000001",
+        "pagingToken": "0000001529008361472-0000000001",
+        "inSuccessfulContractCall": true,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": ["AAAADwAAAAdDT1VOVEVSAA==", "AAAADwAAAAZiZWZvcmUAAA=="],
+        "value": "AAAAAwAAAAA="
+      },
+      {
+        "type": "contract",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "CD22CGOKFM2VTJHG26AOPA5XAFRFVB7MSACDNBBGAD26LP2GJWGZKFHM",
+        "id": "0000001529008361472-0000000002",
+        "pagingToken": "0000001529008361472-0000000002",
+        "inSuccessfulContractCall": true,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": ["AAAADwAAAAdDT1VOVEVSAA==", "AAAADwAAAAlpbmNyZW1lbnQAAAA="],
+        "value": "AAAAAwAAAAE="
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "CD22CGOKFM2VTJHG26AOPA5XAFRFVB7MSACDNBBGAD26LP2GJWGZKFHM",
+        "id": "0000001529008361472-0000000003",
+        "pagingToken": "0000001529008361472-0000000003",
+        "inSuccessfulContractCall": true,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAlmbl9yZXR1cm4AAAA=",
+          "AAAADwAAAAlpbmNyZW1lbnQAAAA="
+        ],
+        "value": "AAAAAwAAAAE="
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000004",
+        "pagingToken": "0000001529008361472-0000000004",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAApyZWFkX2VudHJ5AAA="
+        ],
+        "value": "AAAABQAAAAAAAAAC"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000005",
+        "pagingToken": "0000001529008361472-0000000005",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAAt3cml0ZV9lbnRyeQA="
+        ],
+        "value": "AAAABQAAAAAAAAAB"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000006",
+        "pagingToken": "0000001529008361472-0000000006",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAABBsZWRnZXJfcmVhZF9ieXRl"
+        ],
+        "value": "AAAABQAAAAAAAAPw"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000007",
+        "pagingToken": "0000001529008361472-0000000007",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAABFsZWRnZXJfd3JpdGVfYnl0ZQAAAA=="
+        ],
+        "value": "AAAABQAAAAAAAACE"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000008",
+        "pagingToken": "0000001529008361472-0000000008",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAA1yZWFkX2tleV9ieXRlAAAA"
+        ],
+        "value": "AAAABQAAAAAAAABU"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000009",
+        "pagingToken": "0000001529008361472-0000000009",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAA53cml0ZV9rZXlfYnl0ZQAA"
+        ],
+        "value": "AAAABQAAAAAAAAAA"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000010",
+        "pagingToken": "0000001529008361472-0000000010",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAA5yZWFkX2RhdGFfYnl0ZQAA"
+        ],
+        "value": "AAAABQAAAAAAAABo"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000011",
+        "pagingToken": "0000001529008361472-0000000011",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAA93cml0ZV9kYXRhX2J5dGUA"
+        ],
+        "value": "AAAABQAAAAAAAACE"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000012",
+        "pagingToken": "0000001529008361472-0000000012",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAA5yZWFkX2NvZGVfYnl0ZQAA"
+        ],
+        "value": "AAAABQAAAAAAAAOI"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000013",
+        "pagingToken": "0000001529008361472-0000000013",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAA93cml0ZV9jb2RlX2J5dGUA"
+        ],
+        "value": "AAAABQAAAAAAAAAA"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000014",
+        "pagingToken": "0000001529008361472-0000000014",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAAplbWl0X2V2ZW50AAA="
+        ],
+        "value": "AAAABQAAAAAAAAAC"
+      },
+      {
+        "type": "diagnostic",
+        "ledger": 356,
+        "ledgerClosedAt": "2025-07-05T20:13:28Z",
+        "contractId": "",
+        "id": "0000001529008361472-0000000015",
+        "pagingToken": "0000001529008361472-0000000015",
+        "inSuccessfulContractCall": false,
+        "txHash": "9a51a5d876e8795eef35f414548b2b89b9b3ab6197eef5dea1b2c6706611f6db",
+        "topic": [
+          "AAAADwAAAAxjb3JlX21ldHJpY3M=",
+          "AAAADwAAAA9lbWl0X2V2ZW50X2J5dGUA"
+        ],
+        "value": "AAAABQAAAAAAAAC8"
+      }
+    ],
+    "latestLedger": 562,
+    "cursor": "0000001529008361472-0000000015"
+  }
+}
