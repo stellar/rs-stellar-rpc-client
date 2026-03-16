@@ -31,7 +31,7 @@ hex = "0.4.3"
 thiserror = "1.0.46"
 serde = "1.0.82"
 serde_with = "3.9.0"
-tokio = "1.28.1"
+tokio = "1.38.2"
 sha2 = "0.10.7"
 
 # networking
