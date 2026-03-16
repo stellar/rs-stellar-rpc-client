@@ -655,30 +655,6 @@ pub struct Ledger {
     pub metadata_json: Option<LedgerCloseMeta>,
 }
 
-// Determines whether or not a particular filter matches a topic based on the
-// same semantics as the RPC server:
-//
-//  - for an exact segment match, the filter is a base64-encoded ScVal
-//  - for a wildcard, single-segment match, the string "*" matches exactly one
-//    segment
-//
-// The expectation is that a `filter` is a comma-separated list of segments that
-// has previously been validated, and `topic` is the list of segments applicable
-// for this event.
-//
-// [API
-// Reference](https://docs.google.com/document/d/1TZUDgo_3zPz7TiPMMHVW_mtogjLyPL0plvzGMsxSz6A/edit#bookmark=id.35t97rnag3tx)
-// [Code
-// Reference](https://github.com/stellar/soroban-tools/blob/bac1be79e8c2590c9c35ad8a0168aab0ae2b4171/cmd/soroban-rpc/internal/methods/get_events.go#L182-L203)
-#[must_use]
-pub fn does_topic_match(topic: &[String], filter: &[String]) -> bool {
-    filter.len() == topic.len()
-        && filter
-            .iter()
-            .enumerate()
-            .all(|(i, s)| *s == "*" || topic[i] == *s)
-}
-
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct Event {
     #[serde(rename = "type")]
@@ -1551,6 +1527,40 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
+    // Determines whether or not a particular filter matches a topic based on
+    // the same semantics as the RPC server:
+    //
+    //  - for an exact segment match, the filter is a base64-encoded ScVal
+    //  - for a wildcard, single-segment match, the string "*" matches exactly
+    //    one segment
+    //  - for a wildcard, multi-segment match, the string "**" as the last
+    //    element of the filter matches zero or more trailing segments
+    //
+    // [API Reference](https://docs.google.com/document/d/1TZUDgo_3zPz7TiPMMHVW_mtogjLyPL0plvzGMsxSz6A/edit#bookmark=id.35t97rnag3tx)
+    // [Code Reference](https://github.com/stellar/soroban-tools/blob/bac1be79e8c2590c9c35ad8a0168aab0ae2b4171/cmd/soroban-rpc/internal/methods/get_events.go#L182-L203)
+    fn does_topic_match(topic: &[String], filter: &[String]) -> bool {
+        if filter.is_empty() {
+            return false;
+        }
+
+        // "**" as the last filter element matches zero or more trailing segments.
+        if let Some((last, prefix)) = filter.split_last() {
+            if last == "**" {
+                return topic.len() >= prefix.len()
+                    && prefix
+                        .iter()
+                        .enumerate()
+                        .all(|(i, s)| *s == "*" || topic[i] == *s);
+            }
+        }
+
+        filter.len() == topic.len()
+            && filter
+                .iter()
+                .enumerate()
+                .all(|(i, s)| *s == "*" || topic[i] == *s)
+    }
+
     fn get_repo_root() -> PathBuf {
         let mut path = env::current_exe().expect("Failed to get current executable path");
         // Navigate up the directory tree until we find the repository root
@@ -1850,6 +1860,53 @@ mod tests {
                     vec![number, xfer],
                     vec![xfer, xfer, xfer],
                     vec![xfer, number, xfer],
+                ],
+            },
+            // "**" as the sole filter element matches any topic (0+ segments).
+            TestCase {
+                name: "**",
+                filter: vec!["**"],
+                includes: vec![
+                    vec![],
+                    vec![xfer],
+                    vec![xfer, number],
+                    vec![xfer, number, number],
+                ],
+                excludes: vec![],
+            },
+            // "transfer/**" matches "transfer" followed by 0+ segments.
+            TestCase {
+                name: "transfer/**",
+                filter: vec![xfer, "**"],
+                includes: vec![
+                    vec![xfer],
+                    vec![xfer, number],
+                    vec![xfer, number, number],
+                    vec![xfer, xfer, xfer],
+                ],
+                excludes: vec![
+                    vec![],
+                    vec![number],
+                    vec![number, xfer],
+                    vec![number, number],
+                ],
+            },
+            // "transfer/number/**" matches exactly "transfer/number" followed
+            // by 0+ segments.
+            TestCase {
+                name: "transfer/number/**",
+                filter: vec![xfer, number, "**"],
+                includes: vec![
+                    vec![xfer, number],
+                    vec![xfer, number, number],
+                    vec![xfer, number, xfer, number],
+                ],
+                excludes: vec![
+                    vec![],
+                    vec![xfer],
+                    vec![number],
+                    vec![number, xfer],
+                    vec![xfer, xfer],
                 ],
             },
         ] {
