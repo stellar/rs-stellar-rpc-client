@@ -851,15 +851,29 @@ pub enum LedgerStart {
     Cursor(String),
 }
 
+/// An inclusive ledger range. Construct via [`EventStart::ledger_range`].
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct LedgerRange {
+    start: u32,
+    end: u32,
+}
+
+impl LedgerRange {
+    pub fn start(&self) -> u32 {
+        self.start
+    }
+
+    pub fn end(&self) -> u32 {
+        self.end
+    }
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum EventStart {
     Ledger(u32),
     /// A range of ledgers, inclusive. Use [`EventStart::ledger_range`] to
     /// construct this variant with validation.
-    LedgerRange {
-        start: u32,
-        end: u32,
-    },
+    LedgerRange(LedgerRange),
     Cursor(String),
 }
 
@@ -873,7 +887,7 @@ impl EventStart {
                 "invalid ledger range: start ({start}) must be <= end ({end})"
             ));
         }
-        Ok(EventStart::LedgerRange { start, end })
+        Ok(EventStart::LedgerRange(LedgerRange { start, end }))
     }
 }
 
@@ -1431,9 +1445,9 @@ impl Client {
         let mut oparams = ObjectParams::new();
         match start {
             EventStart::Ledger(l) => oparams.insert("startLedger", l)?,
-            EventStart::LedgerRange { start, end } => {
-                oparams.insert("startLedger", start)?;
-                oparams.insert("endLedger", end)?;
+            EventStart::LedgerRange(r) => {
+                oparams.insert("startLedger", r.start())?;
+                oparams.insert("endLedger", r.end())?;
             }
             EventStart::Cursor(c) => {
                 pagination.insert("cursor".to_string(), c.into());
@@ -1726,6 +1740,21 @@ mod tests {
 
         assert!(event.operation_index.is_none());
         assert!(event.transaction_index.is_none());
+    }
+
+    #[test]
+    fn test_ledger_range_valid() {
+        let r = EventStart::ledger_range(10, 20).unwrap();
+        assert_eq!(r, EventStart::ledger_range(10, 20).unwrap());
+
+        // equal start and end is valid
+        assert!(EventStart::ledger_range(10, 10).is_ok());
+    }
+
+    #[test]
+    fn test_ledger_range_invalid() {
+        let err = EventStart::ledger_range(100, 50).unwrap_err();
+        assert!(err.contains("start (100)") && err.contains("end (50)"));
     }
 
     #[test]
