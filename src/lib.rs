@@ -706,7 +706,9 @@ pub struct Event {
     pub transaction_index: Option<u32>,
     #[serde(rename = "txHash", default, skip_serializing_if = "Option::is_none")]
     pub tx_hash: Option<String>,
-    #[deprecated(note = "This field is deprecated by Stellar RPC")]
+    #[deprecated(
+        note = "This field is deprecated by Stellar RPC. See https://stellar.org/blog/developers/protocol-23-upgrade-guide"
+    )]
     #[serde(
         rename = "inSuccessfulContractCall",
         default,
