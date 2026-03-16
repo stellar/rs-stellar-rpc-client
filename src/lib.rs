@@ -129,6 +129,16 @@ pub struct GetTransactionResponseRaw {
     pub ledger: Option<u32>,
 
     #[serde(
+        rename = "applicationOrder",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub application_order: Option<u32>,
+
+    #[serde(rename = "feeBump", skip_serializing_if = "Option::is_none", default)]
+    pub fee_bump: Option<bool>,
+
+    #[serde(
         rename = "envelopeXdr",
         skip_serializing_if = "Option::is_none",
         default
@@ -144,6 +154,17 @@ pub struct GetTransactionResponseRaw {
         default
     )]
     pub result_meta_xdr: Option<String>,
+
+    #[serde(rename = "txHash", skip_serializing_if = "Option::is_none", default)]
+    pub tx_hash: Option<String>,
+
+    #[serde(
+        rename = "createdAt",
+        deserialize_with = "deserialize_option_i64_from_string_or_number",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub created_at: Option<i64>,
 
     #[serde(rename = "events", skip_serializing_if = "Option::is_none", default)]
     pub events: Option<GetTransactionEventsRaw>,
@@ -184,6 +205,10 @@ pub struct GetTransactionEvents {
 pub struct GetTransactionResponse {
     pub status: String,
     pub ledger: Option<u32>,
+    pub application_order: Option<u32>,
+    pub fee_bump: Option<bool>,
+    pub tx_hash: Option<String>,
+    pub created_at: Option<i64>,
     pub envelope: Option<xdr::TransactionEnvelope>,
     pub result: Option<xdr::TransactionResult>,
     pub result_meta: Option<xdr::TransactionMeta>,
@@ -247,6 +272,10 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
         Ok(GetTransactionResponse {
             status: self.status,
             ledger: self.ledger,
+            application_order: self.application_order,
+            fee_bump: self.fee_bump,
+            tx_hash: self.tx_hash,
+            created_at: self.created_at,
             envelope: self
                 .envelope_xdr
                 .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
@@ -1520,6 +1549,30 @@ pub(crate) fn parse_cursor(c: &str) -> Result<(u64, i32), Error> {
     Ok((toid_part, start_index))
 }
 
+fn deserialize_option_i64_from_string_or_number<'de, D>(
+    deserializer: D,
+) -> Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumber {
+        String(String),
+        Number(i64),
+    }
+
+    match Option::<StringOrNumber>::deserialize(deserializer)? {
+        None => Ok(None),
+        Some(StringOrNumber::String(s)) => {
+            s.parse::<i64>().map(Some).map_err(serde::de::Error::custom)
+        }
+        Some(StringOrNumber::Number(n)) => Ok(Some(n)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1626,6 +1679,13 @@ mod tests {
         assert_eq!(2, response.events.transaction_events.iter().len());
         assert_eq!(1, response.events.contract_events.len());
         assert_eq!(21, response.events.diagnostic_events.iter().len());
+        assert_eq!(
+            response.tx_hash.as_deref(),
+            Some("bfe15f83ea850b7bf86fd7152f9074033f2aec2a045e40a8872ac56726a6e35c")
+        );
+        assert_eq!(response.created_at, Some(1_751_666_924));
+        assert_eq!(response.application_order, Some(1));
+        assert_eq!(response.fee_bump, Some(false));
     }
 
     #[test]
@@ -1641,6 +1701,13 @@ mod tests {
             .expect("Failed to convert GetTransactionsResponseRaw to GetTransactionsResponse");
 
         assert_eq!(23, response.events.diagnostic_events.iter().len());
+        assert_eq!(
+            response.tx_hash.as_deref(),
+            Some("a738ccc7f8f457d4367b78c098569ebee23258c71f128d7a2c61585652345937")
+        );
+        assert_eq!(response.created_at, Some(1_751_747_980));
+        assert_eq!(response.application_order, Some(1));
+        assert_eq!(response.fee_bump, Some(false));
     }
 
     #[test]
