@@ -694,6 +694,8 @@ pub struct Event {
     pub contract_id: String,
     pub topic: Vec<String>,
     pub value: String,
+    #[serde(rename = "txHash", default)]
+    pub tx_hash: String,
 }
 
 impl Display for Event {
