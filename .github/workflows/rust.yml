@@ -23,9 +23,9 @@ jobs:
   semver-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - run: rustup update
-      - uses: stellar/binaries@v52
+      - uses: stellar/binaries@v54
         with:
           name: cargo-semver-checks
           version: 0.46.0
@@ -34,7 +34,7 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - run: rustup update
       - run: cargo fmt --all --check
 
@@ -56,7 +56,7 @@ jobs:
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - uses: stellar/actions/rust-cache@main
       - name: Use the minimum supported Rust version
         if: matrix.rust == 'msrv'
