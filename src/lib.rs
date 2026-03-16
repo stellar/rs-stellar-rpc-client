@@ -692,15 +692,27 @@ pub struct Event {
 
     pub id: String,
 
-    #[serde(rename = "operationIndex")]
-    pub operation_index: u32,
-    #[serde(rename = "transactionIndex")]
-    pub transaction_index: u32,
-    #[serde(rename = "txHash")]
-    pub tx_hash: String,
+    #[serde(
+        rename = "operationIndex",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub operation_index: Option<u32>,
+    #[serde(
+        rename = "transactionIndex",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub transaction_index: Option<u32>,
+    #[serde(rename = "txHash", default, skip_serializing_if = "Option::is_none")]
+    pub tx_hash: Option<String>,
     #[deprecated(note = "This field is deprecated by Stellar RPC")]
-    #[serde(rename = "inSuccessfulContractCall")]
-    pub is_successful_contract_call: bool,
+    #[serde(
+        rename = "inSuccessfulContractCall",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_successful_contract_call: Option<bool>,
 
     pub topic: Vec<String>,
     pub value: String,
@@ -840,8 +852,27 @@ pub enum LedgerStart {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum EventStart {
     Ledger(u32),
-    LedgerRange { start: u32, end: u32 },
+    /// A range of ledgers, inclusive. Use [`EventStart::ledger_range`] to
+    /// construct this variant with validation.
+    LedgerRange {
+        start: u32,
+        end: u32,
+    },
     Cursor(String),
+}
+
+impl EventStart {
+    /// Construct an [`EventStart::LedgerRange`] ensuring that `start <= end`.
+    ///
+    /// Returns an `Err` with a descriptive message if `start > end`.
+    pub fn ledger_range(start: u32, end: u32) -> Result<Self, String> {
+        if start > end {
+            return Err(format!(
+                "invalid ledger range: start ({start}) must be <= end ({end})"
+            ));
+        }
+        Ok(EventStart::LedgerRange { start, end })
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq)]
@@ -1656,6 +1687,18 @@ mod tests {
         let resp: GetEventsResponse = serde_json::from_value(result.clone())
             .expect("Failed to parse 'result' into GetEventsResponse");
 
+        // Verify specific field values from the fixture.
+        assert_eq!(resp.events[0].operation_index, Some(0));
+        assert_eq!(resp.events[0].transaction_index, Some(0));
+        assert_eq!(
+            resp.events[0].tx_hash.as_deref(),
+            Some("e42da3c70c90cc319e2cfaa2f69a7bd04aefcc4159b12caa0df216fbb3ab43b4")
+        );
+        #[allow(deprecated)]
+        {
+            assert_eq!(resp.events[0].is_successful_contract_call, Some(true));
+        }
+
         // Re-serialize
         let reserialized = serde_json::to_value(&resp).expect("Failed to serialize response");
 
@@ -1664,6 +1707,23 @@ mod tests {
             result, reserialized,
             "Deserialization should preserve all data"
         );
+    }
+
+    #[test]
+    fn test_parse_events_response_p22() {
+        // Ensure we can still deserialize Event from protocol 22 responses,
+        // which do not include operationIndex or transactionIndex.
+        let response_content = read_json_file("events_response_p22.json");
+        let full_response: serde_json::Value = serde_json::from_str(&response_content)
+            .expect("Failed to parse JSON from events_response_p22.json");
+        let first_event = full_response["result"]["events"][0].clone();
+
+        // Deserialize; this should succeed even though some fields are absent.
+        let event: Event = serde_json::from_value(first_event)
+            .expect("Failed to parse protocol 22 event into Event");
+
+        assert!(event.operation_index.is_none());
+        assert!(event.transaction_index.is_none());
     }
 
     #[test]
