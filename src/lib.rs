@@ -1539,6 +1539,10 @@ mod tests {
     // [API Reference](https://docs.google.com/document/d/1TZUDgo_3zPz7TiPMMHVW_mtogjLyPL0plvzGMsxSz6A/edit#bookmark=id.35t97rnag3tx)
     // [Code Reference](https://github.com/stellar/soroban-tools/blob/bac1be79e8c2590c9c35ad8a0168aab0ae2b4171/cmd/soroban-rpc/internal/methods/get_events.go#L182-L203)
     fn does_topic_match(topic: &[String], filter: &[String]) -> bool {
+        if filter.is_empty() {
+            return false;
+        }
+
         // "**" as the last filter element matches zero or more trailing segments.
         if let Some((last, prefix)) = filter.split_last() {
             if last == "**" {
