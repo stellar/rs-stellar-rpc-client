@@ -655,7 +655,6 @@ pub struct Ledger {
     pub metadata_json: Option<LedgerCloseMeta>,
 }
 
-
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct Event {
     #[serde(rename = "type")]
