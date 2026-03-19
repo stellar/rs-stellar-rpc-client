@@ -31,10 +31,10 @@ hex = "0.4.3"
 thiserror = "1.0.46"
 serde = "1.0.82"
 serde_with = "3.9.0"
-tokio = "1.43.1"
+tokio = "1.42"
 sha2 = "0.10.7"
 
 # networking
-jsonrpsee-http-client = "0.20.1"
-jsonrpsee-core = "0.20.1"
+jsonrpsee-http-client = "0.26.0"
+jsonrpsee-core = "0.26.0"
 http = "1.0.0"
