@@ -1132,7 +1132,7 @@ dependencies = [
 
 [[package]]
 name = "stellar-rpc-client"
-version = "25.1.0"
+version = "26.0.0-rc.1"
 dependencies = [
  "clap",
  "hex",
