@@ -57,7 +57,7 @@ pub enum Error {
     #[error("invalid friendbot url: {0}")]
     InvalidUrl(String),
     #[error(transparent)]
-    JsonRpc(#[from] jsonrpsee_core::client::Error),
+    JsonRpc(#[from] jsonrpsee_core::ClientError),
     #[error("json decoding error: {0}")]
     Serde(#[from] serde_json::Error),
     #[error("transaction failed: {0}")]
