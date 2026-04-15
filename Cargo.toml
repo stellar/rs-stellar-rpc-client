@@ -35,6 +35,6 @@ tokio = "1.43.1"
 sha2 = "0.10.7"
 
 # networking
-jsonrpsee-http-client = "0.20.1"
-jsonrpsee-core = "0.20.1"
+jsonrpsee-http-client = "0.26.0"
+jsonrpsee-core = "0.26.0"
 http = "1.0.0"
