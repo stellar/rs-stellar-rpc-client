@@ -1480,7 +1480,10 @@ impl Client {
         let entries = contract_ref.entries.unwrap_or_default();
         if entries.is_empty() {
             let contract_address = stellar_strkey::Contract(*contract_id).to_string();
-            return Err(Error::NotFound("Contract".to_string(), contract_address));
+            return Err(Error::NotFound(
+                "Contract".to_string(),
+                contract_address.to_string(),
+            ));
         }
         let contract_ref_entry = &entries[0];
         match LedgerEntryData::from_xdr_base64(&contract_ref_entry.xdr, Limits::none())? {
