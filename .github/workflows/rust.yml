@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: rustup update
-      - uses: stellar/binaries@v55
+      - uses: stellar/binaries@v56
         with:
           name: cargo-semver-checks
           version: 0.46.0
