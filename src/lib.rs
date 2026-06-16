@@ -8,7 +8,7 @@ use serde_aux::prelude::{
     deserialize_option_number_from_string,
 };
 use serde_with::{serde_as, DisplayFromStr};
-use stellar_xdr::curr::{
+use stellar_xdr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractId,
     DiagnosticEvent, Error as XdrError, Hash, LedgerCloseMeta, LedgerEntryData, LedgerFootprint,
     LedgerHeaderHistoryEntry, LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr,
