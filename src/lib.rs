@@ -8,7 +8,7 @@ use serde_aux::prelude::{
     deserialize_option_number_from_string,
 };
 use serde_with::{serde_as, DisplayFromStr};
-use stellar_xdr::curr::{
+use stellar_xdr::{
     self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEvent, ContractId,
     DiagnosticEvent, Error as XdrError, Hash, LedgerCloseMeta, LedgerEntryData, LedgerFootprint,
     LedgerHeaderHistoryEntry, LedgerKey, LedgerKeyAccount, Limited, Limits, PublicKey, ReadXdr,
@@ -1480,7 +1480,10 @@ impl Client {
         let entries = contract_ref.entries.unwrap_or_default();
         if entries.is_empty() {
             let contract_address = stellar_strkey::Contract(*contract_id).to_string();
-            return Err(Error::NotFound("Contract".to_string(), contract_address));
+            return Err(Error::NotFound(
+                "Contract".to_string(),
+                contract_address.to_string(),
+            ));
         }
         let contract_ref_entry = &entries[0];
         match LedgerEntryData::from_xdr_base64(&contract_ref_entry.xdr, Limits::none())? {
