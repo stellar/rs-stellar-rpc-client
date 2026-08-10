@@ -31,6 +31,11 @@ use tokio::time::sleep;
 
 const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
 
+/// Depth limit when encoding and decoding XDR.
+///
+/// 500 matches `soroban-env-host`'s `DEFAULT_XDR_RW_LIMITS`.
+const XDR_DEPTH_LIMIT: u32 = 500;
+
 pub type LogEvents = fn(
     footprint: &LedgerFootprint,
     auth: &[VecM<SorobanAuthorizationEntry>],
@@ -222,7 +227,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
         let events = self.events.unwrap_or_default();
         let result_meta: Option<xdr::TransactionMeta> = self
             .result_meta_xdr
-            .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
+            .map(|v| ReadXdr::from_xdr_base64(v, Limits::depth(XDR_DEPTH_LIMIT)))
             .transpose()?;
 
         let events = match result_meta {
@@ -233,7 +238,10 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .into_iter()
                     .map(|es| {
                         es.into_iter()
-                            .filter_map(|e| ContractEvent::from_xdr_base64(e, Limits::none()).ok())
+                            .filter_map(|e| {
+                                ContractEvent::from_xdr_base64(e, Limits::depth(XDR_DEPTH_LIMIT))
+                                    .ok()
+                            })
                             .collect::<Vec<_>>()
                     })
                     .collect::<Vec<Vec<ContractEvent>>>(),
@@ -242,14 +250,18 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .diagnostic_events_xdr
                     .unwrap_or_default()
                     .iter()
-                    .filter_map(|e| DiagnosticEvent::from_xdr_base64(e, Limits::none()).ok())
+                    .filter_map(|e| {
+                        DiagnosticEvent::from_xdr_base64(e, Limits::depth(XDR_DEPTH_LIMIT)).ok()
+                    })
                     .collect(),
 
                 transaction_events: events
                     .transaction_events_xdr
                     .unwrap_or_default()
                     .iter()
-                    .filter_map(|e| TransactionEvent::from_xdr_base64(e, Limits::none()).ok())
+                    .filter_map(|e| {
+                        TransactionEvent::from_xdr_base64(e, Limits::depth(XDR_DEPTH_LIMIT)).ok()
+                    })
                     .collect(),
             },
 
@@ -278,11 +290,11 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
             created_at: self.created_at,
             envelope: self
                 .envelope_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
+                .map(|v| ReadXdr::from_xdr_base64(v, Limits::depth(XDR_DEPTH_LIMIT)))
                 .transpose()?,
             result: self
                 .result_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v, Limits::none()))
+                .map(|v| ReadXdr::from_xdr_base64(v, Limits::depth(XDR_DEPTH_LIMIT)))
                 .transpose()?,
             result_meta,
             events,
@@ -596,11 +608,11 @@ impl SimulateTransactionResponse {
                         .map(|a| {
                             Ok(SorobanAuthorizationEntry::from_xdr_base64(
                                 a,
-                                Limits::none(),
+                                Limits::depth(XDR_DEPTH_LIMIT),
                             )?)
                         })
                         .collect::<Result<_, Error>>()?,
-                    xdr: xdr::ScVal::from_xdr_base64(&r.xdr, Limits::none())?,
+                    xdr: xdr::ScVal::from_xdr_base64(&r.xdr, Limits::depth(XDR_DEPTH_LIMIT))?,
                 })
             })
             .collect()
@@ -611,7 +623,12 @@ impl SimulateTransactionResponse {
     pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
         self.events
             .iter()
-            .map(|e| Ok(DiagnosticEvent::from_xdr_base64(e, Limits::none())?))
+            .map(|e| {
+                Ok(DiagnosticEvent::from_xdr_base64(
+                    e,
+                    Limits::depth(XDR_DEPTH_LIMIT),
+                )?)
+            })
             .collect()
     }
 
@@ -620,7 +637,7 @@ impl SimulateTransactionResponse {
     pub fn transaction_data(&self) -> Result<SorobanTransactionData, Error> {
         Ok(SorobanTransactionData::from_xdr_base64(
             &self.transaction_data,
-            Limits::none(),
+            Limits::depth(XDR_DEPTH_LIMIT),
         )?)
     }
 }
@@ -742,12 +759,12 @@ impl Display for Event {
         writeln!(f, "  Topics:")?;
 
         for topic in &self.topic {
-            let scval =
-                xdr::ScVal::from_xdr_base64(topic, Limits::none()).map_err(|_| std::fmt::Error)?;
+            let scval = xdr::ScVal::from_xdr_base64(topic, Limits::depth(XDR_DEPTH_LIMIT))
+                .map_err(|_| std::fmt::Error)?;
             writeln!(f, "            {scval:?}")?;
         }
 
-        let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::none())
+        let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::depth(XDR_DEPTH_LIMIT))
             .map_err(|_| std::fmt::Error)?;
 
         writeln!(f, "  Value:    {scval:?}")
@@ -813,7 +830,7 @@ impl Event {
 
         colored!(stdout, "  Topics:\n")?;
         for topic in &self.topic {
-            let scval = xdr::ScVal::from_xdr_base64(topic, Limits::none())?;
+            let scval = xdr::ScVal::from_xdr_base64(topic, Limits::depth(XDR_DEPTH_LIMIT))?;
             colored!(
                 stdout,
                 "            {}{:?}{}\n",
@@ -823,7 +840,7 @@ impl Event {
             )?;
         }
 
-        let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::none())?;
+        let scval = xdr::ScVal::from_xdr_base64(&self.value, Limits::depth(XDR_DEPTH_LIMIT))?;
         colored!(
             stdout,
             "  Value: {}{:?}{}\n\n",
@@ -1135,7 +1152,7 @@ impl Client {
         }
 
         let ledger_entry = &entries[0];
-        let mut read = Limited::new(ledger_entry.xdr.as_bytes(), Limits::none());
+        let mut read = Limited::new(ledger_entry.xdr.as_bytes(), Limits::depth(XDR_DEPTH_LIMIT));
 
         if let LedgerEntryData::Account(entry) = LedgerEntryData::read_xdr_base64(&mut read)? {
             Ok(entry)
@@ -1166,7 +1183,10 @@ impl Client {
     /// # Errors
     pub async fn send_transaction(&self, tx: &TransactionEnvelope) -> Result<Hash, Error> {
         let mut oparams = ObjectParams::new();
-        oparams.insert("transaction", tx.to_xdr_base64(Limits::none())?)?;
+        oparams.insert(
+            "transaction",
+            tx.to_xdr_base64(Limits::depth(XDR_DEPTH_LIMIT))?,
+        )?;
         let SendTransactionResponse {
             hash,
             error_result_xdr,
@@ -1186,7 +1206,7 @@ impl Client {
                 .and_then(|x| {
                     TransactionResult::read_xdr_base64(&mut Limited::new(
                         x.as_bytes(),
-                        Limits::none(),
+                        Limits::depth(XDR_DEPTH_LIMIT),
                     ))
                     .map_err(|_| Error::InvalidResponse)
                 })
@@ -1215,7 +1235,7 @@ impl Client {
         tx: &TransactionEnvelope,
         auth_mode: Option<AuthMode>,
     ) -> Result<SimulateTransactionResponse, Error> {
-        let base64_tx = tx.to_xdr_base64(Limits::none())?;
+        let base64_tx = tx.to_xdr_base64(Limits::depth(XDR_DEPTH_LIMIT))?;
         let mut params = ObjectParams::new();
 
         params.insert("transaction", base64_tx)?;
@@ -1246,7 +1266,7 @@ impl Client {
         auth_mode: Option<AuthMode>,
         resource_config: Option<ResourceConfig>,
     ) -> Result<SimulateTransactionResponse, Error> {
-        let base64_tx = tx.to_xdr_base64(Limits::none())?;
+        let base64_tx = tx.to_xdr_base64(Limits::depth(XDR_DEPTH_LIMIT))?;
         let mut params = ObjectParams::new();
 
         params.insert("transaction", base64_tx)?;
@@ -1366,11 +1386,11 @@ impl Client {
         let mut base64_keys: Vec<String> = vec![];
 
         for k in keys {
-            let base64_result = k.to_xdr_base64(Limits::none());
+            let base64_result = k.to_xdr_base64(Limits::depth(XDR_DEPTH_LIMIT));
             if base64_result.is_err() {
                 return Err(Error::Xdr(XdrError::Invalid));
             }
-            base64_keys.push(k.to_xdr_base64(Limits::none())?);
+            base64_keys.push(k.to_xdr_base64(Limits::depth(XDR_DEPTH_LIMIT))?);
         }
 
         let mut oparams = ObjectParams::new();
@@ -1405,8 +1425,8 @@ impl Client {
                      live_until_ledger_seq_ledger_seq,
                  }| {
                     Ok(FullLedgerEntry {
-                        key: LedgerKey::from_xdr_base64(key, Limits::none())?,
-                        val: LedgerEntryData::from_xdr_base64(xdr, Limits::none())?,
+                        key: LedgerKey::from_xdr_base64(key, Limits::depth(XDR_DEPTH_LIMIT))?,
+                        val: LedgerEntryData::from_xdr_base64(xdr, Limits::depth(XDR_DEPTH_LIMIT))?,
                         live_until_ledger_seq: *live_until_ledger_seq_ledger_seq,
                         last_modified_ledger: *last_modified_ledger,
                     })
@@ -1486,7 +1506,10 @@ impl Client {
             ));
         }
         let contract_ref_entry = &entries[0];
-        match LedgerEntryData::from_xdr_base64(&contract_ref_entry.xdr, Limits::none())? {
+        match LedgerEntryData::from_xdr_base64(
+            &contract_ref_entry.xdr,
+            Limits::depth(XDR_DEPTH_LIMIT),
+        )? {
             LedgerEntryData::ContractData(contract_data) => Ok(contract_data),
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
@@ -1523,7 +1546,10 @@ impl Client {
             ));
         }
         let contract_data_entry = &entries[0];
-        match LedgerEntryData::from_xdr_base64(&contract_data_entry.xdr, Limits::none())? {
+        match LedgerEntryData::from_xdr_base64(
+            &contract_data_entry.xdr,
+            Limits::depth(XDR_DEPTH_LIMIT),
+        )? {
             LedgerEntryData::ContractCode(xdr::ContractCodeEntry { code, .. }) => Ok(code.into()),
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
