@@ -51,11 +51,25 @@ fn xdr_encode_limits() -> Limits {
 /// Limits for XDR decoded from the RPC server, bounded by the size of the
 /// input received rather than a fixed constant, per `soroban-env-host`'s
 /// guidance against reusing its length limit for deserialization.
+///
+/// `input_len` counts *decoded* bytes; see `xdr_decode_limits_base64`.
 fn xdr_decode_limits(input_len: usize) -> Limits {
     Limits {
         depth: XDR_DEPTH_LIMIT,
         len: input_len,
     }
+}
+
+/// The same budget, derived from a base64 string: 4 characters encode 3 bytes,
+/// so the decoded payload can never exceed `input.len() / 4 * 3`.
+fn xdr_decode_limits_base64(input: &str) -> Limits {
+    xdr_decode_limits(input.len() / 4 * 3)
+}
+
+/// Decodes base64 XDR received from the RPC server under a length budget
+/// derived from the input itself.
+fn decode_b64<T: ReadXdr>(input: &str) -> Result<T, XdrError> {
+    T::from_xdr_base64(input, xdr_decode_limits_base64(input))
 }
 
 /// Set explicitly so this bound is a deliberate choice, not one inherited
@@ -253,7 +267,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
         let events = self.events.unwrap_or_default();
         let result_meta: Option<xdr::TransactionMeta> = self
             .result_meta_xdr
-            .map(|v| ReadXdr::from_xdr_base64(v.as_str(), xdr_decode_limits(v.len())))
+            .map(|v| decode_b64(v.as_str()))
             .transpose()?;
 
         let events = match result_meta {
@@ -264,9 +278,7 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .into_iter()
                     .map(|es| {
                         es.into_iter()
-                            .filter_map(|e| {
-                                ContractEvent::from_xdr_base64(&e, xdr_decode_limits(e.len())).ok()
-                            })
+                            .filter_map(|e| decode_b64::<ContractEvent>(&e).ok())
                             .collect::<Vec<_>>()
                     })
                     .collect::<Vec<Vec<ContractEvent>>>(),
@@ -275,18 +287,14 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                     .diagnostic_events_xdr
                     .unwrap_or_default()
                     .iter()
-                    .filter_map(|e| {
-                        DiagnosticEvent::from_xdr_base64(e, xdr_decode_limits(e.len())).ok()
-                    })
+                    .filter_map(|e| decode_b64::<DiagnosticEvent>(e).ok())
                     .collect(),
 
                 transaction_events: events
                     .transaction_events_xdr
                     .unwrap_or_default()
                     .iter()
-                    .filter_map(|e| {
-                        TransactionEvent::from_xdr_base64(e, xdr_decode_limits(e.len())).ok()
-                    })
+                    .filter_map(|e| decode_b64::<TransactionEvent>(e).ok())
                     .collect(),
             },
 
@@ -315,11 +323,11 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
             created_at: self.created_at,
             envelope: self
                 .envelope_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v.as_str(), xdr_decode_limits(v.len())))
+                .map(|v| decode_b64(v.as_str()))
                 .transpose()?,
             result: self
                 .result_xdr
-                .map(|v| ReadXdr::from_xdr_base64(v.as_str(), xdr_decode_limits(v.len())))
+                .map(|v| decode_b64(v.as_str()))
                 .transpose()?,
             result_meta,
             events,
@@ -630,14 +638,9 @@ impl SimulateTransactionResponse {
                     auth: r
                         .auth
                         .iter()
-                        .map(|a| {
-                            Ok(SorobanAuthorizationEntry::from_xdr_base64(
-                                a,
-                                xdr_decode_limits(a.len()),
-                            )?)
-                        })
+                        .map(|a| Ok(decode_b64::<SorobanAuthorizationEntry>(a)?))
                         .collect::<Result<_, Error>>()?,
-                    xdr: xdr::ScVal::from_xdr_base64(&r.xdr, xdr_decode_limits(r.xdr.len()))?,
+                    xdr: decode_b64(&r.xdr)?,
                 })
             })
             .collect()
@@ -648,22 +651,14 @@ impl SimulateTransactionResponse {
     pub fn events(&self) -> Result<Vec<DiagnosticEvent>, Error> {
         self.events
             .iter()
-            .map(|e| {
-                Ok(DiagnosticEvent::from_xdr_base64(
-                    e,
-                    xdr_decode_limits(e.len()),
-                )?)
-            })
+            .map(|e| Ok(decode_b64::<DiagnosticEvent>(e)?))
             .collect()
     }
 
     ///
     /// # Errors
     pub fn transaction_data(&self) -> Result<SorobanTransactionData, Error> {
-        Ok(SorobanTransactionData::from_xdr_base64(
-            &self.transaction_data,
-            xdr_decode_limits(self.transaction_data.len()),
-        )?)
+        Ok(decode_b64(&self.transaction_data)?)
     }
 }
 
@@ -786,13 +781,11 @@ impl Display for Event {
         writeln!(f, "  Topics:")?;
 
         for topic in &self.topic {
-            let scval = xdr::ScVal::from_xdr_base64(topic, xdr_decode_limits(topic.len()))
-                .map_err(|_| std::fmt::Error)?;
+            let scval = decode_b64::<xdr::ScVal>(topic).map_err(|_| std::fmt::Error)?;
             writeln!(f, "            {scval:?}")?;
         }
 
-        let scval = xdr::ScVal::from_xdr_base64(&self.value, xdr_decode_limits(self.value.len()))
-            .map_err(|_| std::fmt::Error)?;
+        let scval = decode_b64::<xdr::ScVal>(&self.value).map_err(|_| std::fmt::Error)?;
 
         writeln!(f, "  Value:    {scval:?}")
     }
@@ -857,7 +850,7 @@ impl Event {
 
         colored!(stdout, "  Topics:\n")?;
         for topic in &self.topic {
-            let scval = xdr::ScVal::from_xdr_base64(topic, xdr_decode_limits(topic.len()))?;
+            let scval = decode_b64::<xdr::ScVal>(topic)?;
             colored!(
                 stdout,
                 "            {}{:?}{}\n",
@@ -867,7 +860,7 @@ impl Event {
             )?;
         }
 
-        let scval = xdr::ScVal::from_xdr_base64(&self.value, xdr_decode_limits(self.value.len()))?;
+        let scval = decode_b64::<xdr::ScVal>(&self.value)?;
         colored!(
             stdout,
             "  Value: {}{:?}{}\n\n",
@@ -1183,7 +1176,7 @@ impl Client {
         let ledger_entry = &entries[0];
         let mut read = Limited::new(
             ledger_entry.xdr.as_bytes(),
-            xdr_decode_limits(ledger_entry.xdr.len()),
+            xdr_decode_limits_base64(&ledger_entry.xdr),
         );
 
         if let LedgerEntryData::Account(entry) = LedgerEntryData::read_xdr_base64(&mut read)? {
@@ -1235,7 +1228,7 @@ impl Client {
                 .and_then(|x| {
                     TransactionResult::read_xdr_base64(&mut Limited::new(
                         x.as_bytes(),
-                        xdr_decode_limits(x.len()),
+                        xdr_decode_limits_base64(&x),
                     ))
                     .map_err(|_| Error::InvalidResponse)
                 })
@@ -1450,8 +1443,8 @@ impl Client {
                      live_until_ledger_seq_ledger_seq,
                  }| {
                     Ok(FullLedgerEntry {
-                        key: LedgerKey::from_xdr_base64(key, xdr_decode_limits(key.len()))?,
-                        val: LedgerEntryData::from_xdr_base64(xdr, xdr_decode_limits(xdr.len()))?,
+                        key: decode_b64(key)?,
+                        val: decode_b64(xdr)?,
                         live_until_ledger_seq: *live_until_ledger_seq_ledger_seq,
                         last_modified_ledger: *last_modified_ledger,
                     })
@@ -1531,10 +1524,7 @@ impl Client {
             ));
         }
         let contract_ref_entry = &entries[0];
-        match LedgerEntryData::from_xdr_base64(
-            &contract_ref_entry.xdr,
-            xdr_decode_limits(contract_ref_entry.xdr.len()),
-        )? {
+        match decode_b64::<LedgerEntryData>(&contract_ref_entry.xdr)? {
             LedgerEntryData::ContractData(contract_data) => Ok(contract_data),
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
@@ -1571,10 +1561,7 @@ impl Client {
             ));
         }
         let contract_data_entry = &entries[0];
-        match LedgerEntryData::from_xdr_base64(
-            &contract_data_entry.xdr,
-            xdr_decode_limits(contract_data_entry.xdr.len()),
-        )? {
+        match decode_b64::<LedgerEntryData>(&contract_data_entry.xdr)? {
             LedgerEntryData::ContractCode(xdr::ContractCodeEntry { code, .. }) => Ok(code.into()),
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
@@ -1659,8 +1646,35 @@ mod tests {
     }
 
     // Each `ScVal::Vec` level costs 4 units of depth, so this is the first
-    // nesting level that exceeds `XDR_DEPTH_LIMIT = 500` (measured).
+    // nesting level that exceeds `XDR_DEPTH_LIMIT = 500` (measured). This pins
+    // stellar-xdr's internal depth accounting, so it acts as a canary: if a
+    // dependency bump changes the cost per level, these tests fail and the
+    // constant needs re-measuring — the limit itself is still enforced.
     const FIRST_REJECTED_NESTING_LEVEL: usize = 125;
+
+    /// Minimal base64 encoder, so a hand-forged byte payload can be fed
+    /// through the same `from_xdr_base64` path the RPC responses take.
+    fn base64_encode(bytes: &[u8]) -> String {
+        const ALPHABET: &[u8; 64] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        for chunk in bytes.chunks(3) {
+            let b = [
+                chunk[0],
+                *chunk.get(1).unwrap_or(&0),
+                *chunk.get(2).unwrap_or(&0),
+            ];
+            let n = u32::from(b[0]) << 16 | u32::from(b[1]) << 8 | u32::from(b[2]);
+            for i in 0..4 {
+                if i <= chunk.len() {
+                    out.push(ALPHABET[(n >> (18 - 6 * i)) as usize & 0x3F] as char);
+                } else {
+                    out.push('=');
+                }
+            }
+        }
+        out
+    }
 
     #[test]
     fn decoding_accepts_xdr_at_the_depth_limit() {
@@ -1687,8 +1701,8 @@ mod tests {
         );
     }
 
-    /// Uses raw (non-base64) `to_xdr`/`from_xdr` to forge the payload; the
-    /// length budget being tested is the same one `from_xdr_base64` uses.
+    /// Forges the payload as raw bytes, then feeds it through the real
+    /// `results()` call site so the derived budget is the one under test.
     #[test]
     fn decoding_rejects_a_payload_that_lies_about_its_internal_length() {
         // `ScVal::Bytes` with a 4-byte payload: discriminant + length + data.
@@ -1703,12 +1717,13 @@ mod tests {
         // actual bytes; a real allocation must never be attempted.
         forged[4..8].copy_from_slice(&0x7FFF_FFF0u32.to_be_bytes());
 
-        let input_len = forged.len(); // 12 bytes, nowhere near 2 GiB
-        let err = xdr::ScVal::from_xdr(&forged, xdr_decode_limits(input_len))
+        // 16 base64 characters => a 12-byte budget, nowhere near 2 GiB.
+        let err = simulation_with_result_xdr(base64_encode(&forged))
+            .results()
             .expect_err("a payload lying about its internal length must be rejected");
 
         assert!(
-            matches!(err, XdrError::LengthLimitExceeded),
+            matches!(err, Error::Xdr(XdrError::LengthLimitExceeded)),
             "expected length limit error, got {err:?}"
         );
     }
