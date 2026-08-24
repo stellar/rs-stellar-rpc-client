@@ -173,6 +173,13 @@ pub struct GetTransactionResponseRaw {
 
     #[serde(rename = "events", skip_serializing_if = "Option::is_none", default)]
     pub events: Option<GetTransactionEventsRaw>,
+
+    #[serde(
+        rename = "diagnosticEventsXdr",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub diagnostic_events_xdr: Option<Vec<String>>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
@@ -230,7 +237,18 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
             .map(|v| ReadXdr::from_xdr_base64(v, Limits::depth(XDR_DEPTH_LIMIT)))
             .transpose()?;
 
-        let events = match result_meta {
+        // Failed transactions carry diagnostics in the top-level
+        // `diagnosticEventsXdr` field, while leaving the nested/meta path empty.
+        let top_level_diagnostic_events: Vec<DiagnosticEvent> = self
+            .diagnostic_events_xdr
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|e| {
+                DiagnosticEvent::from_xdr_base64(e, Limits::depth(XDR_DEPTH_LIMIT)).ok()
+            })
+            .collect();
+
+        let mut events = match result_meta {
             Some(xdr::TransactionMeta::V4(_)) => GetTransactionEvents {
                 contract_events: events
                     .contract_events_xdr
@@ -280,6 +298,12 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
                 diagnostic_events: vec![],
             },
         };
+
+        // Prefer the nested/meta diagnostics (populated for successful txs); fall
+        // back to the top-level field when they're absent (failed txs).
+        if events.diagnostic_events.is_empty() {
+            events.diagnostic_events = top_level_diagnostic_events;
+        }
 
         Ok(GetTransactionResponse {
             status: self.status,
@@ -1737,6 +1761,24 @@ mod tests {
         assert_eq!(response.created_at, Some(1_751_747_980));
         assert_eq!(response.application_order, Some(1));
         assert_eq!(response.fee_bump, Some(false));
+    }
+
+    #[test]
+    fn test_parse_failed_transaction_recovers_top_level_diagnostic_events() {
+        let response_content = read_json_file("transaction_response_failed_p23.json");
+        let full_response: serde_json::Value = serde_json::from_str(&response_content)
+            .expect("Failed to parse JSON from transaction_response_failed_p23.json");
+        let raw_response: GetTransactionResponseRaw =
+            serde_json::from_value(full_response["result"].clone())
+                .expect("Failed to parse 'result' into GetTransactionResponseRaw");
+        let response: GetTransactionResponse = raw_response
+            .try_into()
+            .expect("Failed to convert GetTransactionResponseRaw to GetTransactionResponse");
+
+        assert_eq!(response.status, "FAILED");
+        // Diagnostics live only in the top-level `diagnosticEventsXdr` field for
+        // failed txs; the nested `events.diagnosticEventsXdr` is absent.
+        assert_eq!(response.events.diagnostic_events.len(), 21);
     }
 
     #[test]
