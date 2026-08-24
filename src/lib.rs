@@ -239,14 +239,9 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
 
         // Failed transactions carry diagnostics in the top-level
         // `diagnosticEventsXdr` field, while leaving the nested/meta path empty.
-        let top_level_diagnostic_events: Vec<DiagnosticEvent> = self
-            .diagnostic_events_xdr
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|e| {
-                DiagnosticEvent::from_xdr_base64(e, Limits::depth(XDR_DEPTH_LIMIT)).ok()
-            })
-            .collect();
+        // Keep the raw strings here and only decode them in the fallback below,
+        // so successful transactions don't pay for parsing they'll discard.
+        let top_level_diagnostic_events_xdr = self.diagnostic_events_xdr.unwrap_or_default();
 
         let mut events = match result_meta {
             Some(xdr::TransactionMeta::V4(_)) => GetTransactionEvents {
@@ -302,7 +297,12 @@ impl TryInto<GetTransactionResponse> for GetTransactionResponseRaw {
         // Prefer the nested/meta diagnostics (populated for successful txs); fall
         // back to the top-level field when they're absent (failed txs).
         if events.diagnostic_events.is_empty() {
-            events.diagnostic_events = top_level_diagnostic_events;
+            events.diagnostic_events = top_level_diagnostic_events_xdr
+                .iter()
+                .filter_map(|e| {
+                    DiagnosticEvent::from_xdr_base64(e, Limits::depth(XDR_DEPTH_LIMIT)).ok()
+                })
+                .collect();
         }
 
         Ok(GetTransactionResponse {
